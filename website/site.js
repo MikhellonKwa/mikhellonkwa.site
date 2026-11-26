@@ -136,8 +136,8 @@ export async function maintenanceGate(sb, profile) {
     const { data: isAdmin } = await sb.rpc("is_admin");
     if (isAdmin) {
       document.body.prepend(h("div", { class: "maint-bar", role: "status" },
-        "Mode maintenance aktif. Pengunjung melihat halaman maintenance; kamu melihat website karena login sebagai admin. ",
-        h("a", { href: "/admin/" }, "Matikan di admin →")));
+        "Maintenance mode is on. Visitors see the maintenance page; you see the site because you are signed in as admin. ",
+        h("a", { href: "/admin/" }, "Turn it off in admin →")));
       return false;
     }
   }
@@ -147,7 +147,7 @@ export async function maintenanceGate(sb, profile) {
   document.body.replaceChildren(h("main", { class: "maint-page" },
     h("p", { class: "maint-name" }, profile.name || ""),
     h("h1", {}, "Under maintenance"),
-    h("p", { class: "maint-msg" }, profile.maintenance_message || "Website sedang diperbarui. Silakan kembali lagi sebentar lagi."),
+    h("p", { class: "maint-msg" }, profile.maintenance_message || "This site is being updated. Please check back soon."),
     email ? h("a", { class: "pill", href: "mailto:" + email }, email) : null));
   return true;
 }

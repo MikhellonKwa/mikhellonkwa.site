@@ -7,8 +7,6 @@ const sb = await getClient();
 const FIELDS = {
   profile: [
     { k: "name", label: "Nama", req: true },
-    { k: "headline", label: "Kalimat utama", type: "textarea", rows: 2, hint: "Kalimat besar di paling atas website, mis. “Saya membangun produk digital yang sederhana dan bermanfaat.”" },
-    { k: "location", label: "Lokasi" },
     { k: "email", label: "Email publik", type: "email" },
     { k: "bio", label: "Bio", type: "textarea", rows: 6, hint: "Pisahkan paragraf dengan satu baris kosong." },
     { k: "skills", label: "Skill", type: "tags", hint: "Pisahkan dengan koma." },
@@ -22,6 +20,7 @@ const FIELDS = {
     { k: "slug", label: "Alamat halaman", type: "slug", hint: "Kosongkan untuk dibuat otomatis dari judul. Hanya huruf kecil, angka, dan tanda -." },
     { k: "subtitle", label: "Subjudul singkat", hint: "Muncul di bawah judul kartu, mis. Aplikasi kasir untuk UMKM." },
     { k: "year", label: "Tahun" },
+    { k: "location", label: "Lokasi project", hint: "Format: Kota, Negara (mis. Jakarta, Indonesia). Tampil sebagai “2027 | Jakarta, Indonesia”." },
     { k: "description", label: "Deskripsi", type: "textarea", rows: 6, hint: "Teks pembuka di halaman project. Pisahkan paragraf dengan baris kosong." },
     { k: "url", label: "Link project", type: "url", hint: "Opsional. Muncul sebagai “Buka project ↗” di halaman detail." },
     { k: "tags", label: "Kategori / tag", type: "tags", hint: "Pisahkan dengan koma. Dipakai juga sebagai filter di halaman utama (mis. hunian, interior)." },
@@ -162,7 +161,7 @@ const BLOCK_TYPES = {
   image: { label: "Foto", make: () => ({ type: "image", url: "", caption: "", size: "normal" }) },
   gallery: { label: "Galeri", make: () => ({ type: "gallery", images: [], columns: 2, size: "normal" }) },
   slider: { label: "Slider", make: () => ({ type: "slider", images: [], size: "normal" }) },
-  beforeafter: { label: "Before / After", make: () => ({ type: "beforeafter", before: "", after: "", beforeLabel: "Sebelum", afterLabel: "Sesudah", caption: "", size: "normal" }) },
+  beforeafter: { label: "Before / After", make: () => ({ type: "beforeafter", before: "", after: "", beforeLabel: "Before", afterLabel: "After", caption: "", size: "normal" }) },
   video: { label: "Video", make: () => ({ type: "video", url: "", caption: "", autoplay: false, size: "normal" }) },
 };
 const SIZES = [["small", "Lebar: kecil"], ["normal", "Lebar: sedang"], ["full", "Lebar: penuh"]];

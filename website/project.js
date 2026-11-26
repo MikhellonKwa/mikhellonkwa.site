@@ -47,15 +47,15 @@ const validImages = list => (list || []).map(i => ({ ...i, u: safeUrl(i.url) }))
 function slider(b) {
   const imgs = validImages(b.images);
   if (!imgs.length) return null;
-  const track = h("div", { class: "sl-track", tabindex: "0", role: "region", "aria-label": "Slider foto, geser atau pakai panah" },
-    imgs.map((i, n) => h("figure", { class: "sl-slide", "aria-label": `${n + 1} dari ${imgs.length}` },
+  const track = h("div", { class: "sl-track", tabindex: "0", role: "region", "aria-label": "Image slider, swipe or use the arrow keys" },
+    imgs.map((i, n) => h("figure", { class: "sl-slide", "aria-label": `${n + 1} of ${imgs.length}` },
       img(i.u, i.caption || ""), i.caption ? h("figcaption", {}, i.caption) : null)));
   if (imgs.length === 1) return h("div", { class: "slider" }, track);
 
   const count = h("span", { class: "sl-count", "aria-live": "polite" }, `1 / ${imgs.length}`);
   const go = d => track.scrollBy({ left: d * track.clientWidth, behavior: reduceMotion ? "auto" : "smooth" });
-  const prev = h("button", { class: "sl-btn", type: "button", "aria-label": "Foto sebelumnya", onclick: () => go(-1), disabled: true }, "←");
-  const next = h("button", { class: "sl-btn", type: "button", "aria-label": "Foto berikutnya", onclick: () => go(1) }, "→");
+  const prev = h("button", { class: "sl-btn", type: "button", "aria-label": "Previous image", onclick: () => go(-1), disabled: true }, "←");
+  const next = h("button", { class: "sl-btn", type: "button", "aria-label": "Next image", onclick: () => go(1) }, "→");
   track.addEventListener("scroll", () => {
     const n = Math.round(track.scrollLeft / track.clientWidth);
     count.textContent = `${n + 1} / ${imgs.length}`;
@@ -75,17 +75,17 @@ function beforeAfter(b) {
   const wrap = h("div", { class: "ba" });
   const range = h("input", {
     type: "range", min: "0", max: "100", value: "50", step: "0.5", class: "ba-range",
-    "aria-label": "Geser untuk membandingkan sebelum dan sesudah",
+    "aria-label": "Drag to compare before and after",
   });
   const set = v => wrap.style.setProperty("--pos", v + "%");
   range.addEventListener("input", () => set(range.value));
   set(50);
   wrap.append(
-    h("img", { src: after, alt: b.afterLabel || "Sesudah", class: "ba-img", draggable: "false" }),
-    h("img", { src: before, alt: b.beforeLabel || "Sebelum", class: "ba-img ba-before", draggable: "false" }),
+    h("img", { src: after, alt: b.afterLabel || "After", class: "ba-img", draggable: "false" }),
+    h("img", { src: before, alt: b.beforeLabel || "Before", class: "ba-img ba-before", draggable: "false" }),
     h("div", { class: "ba-line", "aria-hidden": "true" }, h("span", { class: "ba-knob" }, "↔")),
-    h("span", { class: "ba-tag l", "aria-hidden": "true" }, b.beforeLabel || "Sebelum"),
-    h("span", { class: "ba-tag r", "aria-hidden": "true" }, b.afterLabel || "Sesudah"),
+    h("span", { class: "ba-tag l", "aria-hidden": "true" }, b.beforeLabel || "Before"),
+    h("span", { class: "ba-tag r", "aria-hidden": "true" }, b.afterLabel || "After"),
     range);
   return figure(wrap, b.caption);
 }
@@ -133,7 +133,7 @@ function renderBlock(b) {
 function notFound(title) {
   document.title = title;
   app.replaceChildren(h("div", { class: "detail" },
-    h("a", { class: "back", href: "/" }, "← Kembali ke beranda"),
+    h("a", { class: "back", href: "/" }, "← Back to home"),
     h("div", { class: "detail-top" }, h("p", { class: "year" }, "404"), h("h1", {}, title))));
 }
 
@@ -142,8 +142,8 @@ function render({ profile, project: p, route: r }) {
   setupChrome(name);
   renderSidebar(profile, { base: "/" });
 
-  if (!r.slug && !r.id) return notFound("Halaman tidak ditemukan");
-  if (!p) return notFound("Project tidak ditemukan");
+  if (!r.slug && !r.id) return notFound("Page not found");
+  if (!p) return notFound("Project not found");
 
   // Ganti alamat lama (?id=…) jadi /project/<slug>
   const pretty = projectUrl(p);
@@ -154,9 +154,10 @@ function render({ profile, project: p, route: r }) {
   const cover = safeUrl(p.image_url);
   const url = safeUrl(p.url);
   const facts = [
-    p.year ? ["Tahun", p.year] : null,
-    p.tags?.length ? ["Kategori", p.tags.join(", ")] : null,
-    url ? ["Link", h("a", { href: url, target: "_blank", rel: "noopener" }, "Buka project ↗")] : null,
+    p.year ? ["Year", p.year] : null,
+    p.location ? ["Location", p.location] : null,
+    p.tags?.length ? ["Category", p.tags.join(", ")] : null,
+    url ? ["Link", h("a", { href: url, target: "_blank", rel: "noopener" }, "Open project ↗")] : null,
   ].filter(Boolean);
   const desc = paragraphs(p.description);
   const pdf = safeUrl(p.pdf_url);
@@ -164,10 +165,10 @@ function render({ profile, project: p, route: r }) {
 
   app.replaceChildren(h("article", { class: "detail" },
     p.kind === "research"
-      ? h("a", { class: "back", href: "/#research" }, "← Semua research")
-      : h("a", { class: "back", href: "/#design" }, "← Semua project"),
+      ? h("a", { class: "back", href: "/#research" }, "← All research")
+      : h("a", { class: "back", href: "/#design" }, "← All projects"),
     h("header", { class: "detail-top reveal" },
-      p.year ? h("p", { class: "year" }, p.year) : null,
+      (p.year || p.location) ? h("p", { class: "year" }, [p.year, p.location].filter(Boolean).join(" | ")) : null,
       h("h1", {}, p.title),
       p.subtitle ? h("p", { class: "lead" }, p.subtitle) : null),
     // Foto cover tampil di sini hanya kalau project belum punya blok konten.
@@ -191,15 +192,15 @@ function downloadUrl(u) {
 
 function pdfViewer(url, title) {
   const info = h("span", { class: "pdf-info" }, "Paper (PDF)");
-  const pages = h("div", { class: "pdf-pages", tabindex: "0", "aria-label": "Preview paper, bisa di-scroll" },
-    h("p", { class: "sub pdf-loading" }, "Memuat preview PDF…"));
+  const pages = h("div", { class: "pdf-pages", tabindex: "0", "aria-label": "Paper preview, scrollable" },
+    h("p", { class: "sub pdf-loading" }, "Loading PDF preview…"));
   renderPdf(url, pages, info).catch(() => {
     pages.replaceChildren(h("iframe", { class: "pdf-frame", src: url, title: `${title} (PDF)` }));
   });
   return h("section", { class: "blk size-normal pdf reveal", id: "paper" },
     h("div", { class: "pdf-bar" }, info,
       h("span", { class: "pdf-actions" },
-        h("a", { class: "pill", href: url, target: "_blank", rel: "noopener" }, "Buka layar penuh ↗"),
+        h("a", { class: "pill", href: url, target: "_blank", rel: "noopener" }, "Open full screen ↗"),
         h("a", { class: "pill solid", href: downloadUrl(url) }, "Download PDF"))),
     pages);
 }
@@ -211,7 +212,7 @@ async function renderPdf(url, box, info) {
   const first = await doc.getPage(1);
   const v = first.getViewport({ scale: 1 });
   box.style.setProperty("--ar", `${v.width} / ${v.height}`);
-  info.textContent = `Paper · ${doc.numPages} halaman`;
+  info.textContent = `Paper · ${doc.numPages} pages`;
   box.replaceChildren();
 
   // Halaman digambar saat mendekati area yang terlihat (hemat untuk PDF tebal).
@@ -228,7 +229,7 @@ async function renderPdf(url, box, info) {
     if (e.isIntersecting) { io.unobserve(e.target); draw(e.target); }
   }), { root: box, rootMargin: "600px 0px" });
   for (let n = 1; n <= doc.numPages; n++) {
-    const slot = h("div", { class: "pdf-page", "data-n": String(n), role: "img", "aria-label": `Halaman ${n} dari ${doc.numPages}` });
+    const slot = h("div", { class: "pdf-page", "data-n": String(n), role: "img", "aria-label": `Page ${n} of ${doc.numPages}` });
     box.append(slot);
     io.observe(slot);
   }
@@ -237,5 +238,5 @@ async function renderPdf(url, box, info) {
 load()
   .then(async data => { if (!(await maintenanceGate(await getClient(), data.profile))) render(data); })
   .catch(e => {
-  app.replaceChildren(h("p", { class: "sub", style: "padding:96px 0" }, "Gagal memuat data: " + (e.message || e)));
+  app.replaceChildren(h("p", { class: "sub", style: "padding:96px 0" }, "Failed to load: " + (e.message || e)));
 });

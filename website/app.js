@@ -18,18 +18,16 @@ async function load() {
 
 const ext = (url, text, cls) => h("a", { href: url, target: "_blank", rel: "noopener", class: cls }, text);
 
-// ---------- Intro: kalimat besar + tombol link ----------
+// ---------- Tombol link (hanya di HP; di desktop sudah ada di sidebar) ----------
 function intro(p) {
-  // Tombol pil ini cuma tampil di HP (di desktop sudah ada di sidebar).
   const pills = profileLinks(p).map(l => l.url.startsWith("mailto:")
     ? h("a", { class: "pill", href: l.url }, l.label)
     : ext(l.url, l.label, l.icon === "cv" ? "pill solid" : "pill"));
-
-  return h("section", { class: "intro" },
-    h("h1", { class: "reveal" }, p.headline || p.name || ""),
-    p.location ? h("p", { class: "meta reveal" }, p.location) : null,
-    pills.length ? h("div", { class: "pills reveal" }, pills) : null);
+  return pills.length ? h("section", { class: "intro" }, h("div", { class: "pills reveal" }, pills)) : null;
 }
+
+// "2027 | Jakarta, Indonesia"
+const yearPlace = p => [p.year, p.location].filter(Boolean).join(" | ");
 
 // ---------- Kartu project ----------
 function card(p) {
@@ -41,7 +39,7 @@ function card(p) {
         : h("div", { class: "placeholder", "aria-hidden": "true" }, initials(p.title))),
     safeUrl(p.pdf_url) ? h("span", { class: "badge" }, "PDF") : null,
     h("div", { class: "caption" },
-      p.year ? h("p", { class: "year" }, p.year) : null,
+      yearPlace(p) ? h("p", { class: "year" }, yearPlace(p)) : null,
       h("h3", {}, p.title),
       p.subtitle ? h("p", { class: "st" }, p.subtitle) : null));
 }
@@ -85,8 +83,9 @@ const block = (id, title, ...content) =>
   h("section", { class: "block", id }, h("h2", { class: "reveal" }, title), h("div", { class: "reveal" }, content));
 
 function cvBlock(cv, skills) {
+  const EN = { pengalaman: "Experience", pendidikan: "Education", organisasi: "Organizations", sertifikat: "Certificates & Awards" };
   const groups = CV_TYPES
-    .map(([type, label]) => [label, cv.filter(c => c.type === type)])
+    .map(([type, label]) => [EN[type] || label, cv.filter(c => c.type === type)])
     .filter(([, items]) => items.length)
     .map(([label, items]) => h("div", { class: "cv-group" },
       h("h3", {}, label),
@@ -108,8 +107,8 @@ function contact(p) {
   if (!p.email && !links.length) return null;
   return block("contact", "Contact",
     h("p", { class: "contact-big" },
-      "Tertarik kerja bareng atau sekadar ngobrol? ",
-      p.email ? h("a", { href: "mailto:" + p.email }, p.email) : "Hubungi saya lewat link di bawah."),
+      "Hire me pls :) ",
+      p.email ? h("a", { href: "mailto:" + p.email }, p.email) : "Reach me through the links below."),
     links.length ? h("div", { class: "contact-links" }, links.map(l => ext(l.u, l.label + " ↗"))) : null);
 }
 
@@ -119,9 +118,9 @@ function render({ profile: p, projects, cv, demo }) {
   renderSidebar(p);
 
   app.replaceChildren(...[
-    demo ? h("div", { class: "notice" }, "Mode demo: data masih tersimpan di browser ini saja. Sambungkan Supabase supaya bisa online (lihat PANDUAN.md).") : null,
+    demo ? h("div", { class: "notice" }, "Demo mode: data is only stored in this browser.") : null,
     intro(p),
-    projectSection("design", "Design", projects.filter(x => !isResearch(x)), "Belum ada project design."),
+    projectSection("design", "Design", projects.filter(x => !isResearch(x)), "No design projects yet."),
     projects.some(isResearch) ? projectSection("research", "Research", projects.filter(isResearch), "") : null,
     p.bio ? block("about", "About", h("div", { class: "prose" }, paragraphs(p.bio).map(t => h("p", {}, t)))) : null,
     cvBlock(cv, p.skills),
@@ -137,5 +136,5 @@ function render({ profile: p, projects, cv, demo }) {
 load()
   .then(async data => { if (!(await maintenanceGate(await getClient(), data.profile))) render(data); })
   .catch(e => {
-  app.replaceChildren(h("p", { class: "sub", style: "padding:96px 0" }, "Gagal memuat data: " + (e.message || e)));
+  app.replaceChildren(h("p", { class: "sub", style: "padding:96px 0" }, "Failed to load: " + (e.message || e)));
 });

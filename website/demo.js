@@ -17,7 +17,7 @@ export const DEMO = {
   },
   projects: [
     {
-      id: "d1", slug: "rumah-contoh", title: "Rumah Contoh", year: "2026", subtitle: "Contoh halaman project dengan semua jenis blok",
+      id: "d1", slug: "rumah-contoh", title: "Rumah Contoh", year: "2026", location: "Jakarta, Indonesia", subtitle: "Contoh halaman project dengan semua jenis blok",
       tags: ["hunian"], description: "Ceritakan masalahnya, peran kamu, prosesnya, dan hasilnya di sini.", url: "",
       image_url: "https://picsum.photos/id/1040/1200/900",
       blocks: [
@@ -33,7 +33,7 @@ export const DEMO = {
           { url: "https://picsum.photos/id/1033/1400/900", caption: "Slide 2" },
           { url: "https://picsum.photos/id/1029/1400/900", caption: "Slide 3" },
         ] },
-        { type: "beforeafter", before: "https://picsum.photos/id/1040/1400/900?grayscale", after: "https://picsum.photos/id/1040/1400/900", beforeLabel: "Sebelum", afterLabel: "Sesudah", caption: "Geser untuk membandingkan", size: "normal" },
+        { type: "beforeafter", before: "https://picsum.photos/id/1040/1400/900?grayscale", after: "https://picsum.photos/id/1040/1400/900", beforeLabel: "Before", afterLabel: "After", caption: "Geser untuk membandingkan", size: "normal" },
         { type: "video", url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", caption: "Contoh video", autoplay: false, size: "normal" },
       ],
     },
