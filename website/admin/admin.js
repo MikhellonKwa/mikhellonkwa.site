@@ -1,4 +1,4 @@
-import { getClient, isConfigured, CV_TYPES, BUCKET, h } from "../db.js";
+import { getClient, isConfigured, CV_TYPES, BUCKET, h, slugify, projectUrl } from "../db.js";
 
 const root = document.getElementById("admin");
 const sb = await getClient();
@@ -17,13 +17,15 @@ const FIELDS = {
   ],
   projects: [
     { k: "title", label: "Judul", req: true },
+    { k: "slug", label: "Alamat halaman", type: "slug", hint: "Kosongkan untuk dibuat otomatis dari judul. Hanya huruf kecil, angka, dan tanda -." },
     { k: "subtitle", label: "Subjudul singkat", hint: "Muncul di bawah judul kartu, mis. Aplikasi kasir untuk UMKM." },
     { k: "year", label: "Tahun" },
-    { k: "description", label: "Deskripsi lengkap", type: "textarea", rows: 8, hint: "Tampil di halaman detail project. Pisahkan paragraf dengan baris kosong." },
-    { k: "url", label: "Link project", type: "url", hint: "Opsional. Muncul sebagai tombol “Buka project” di halaman detail." },
-    { k: "tags", label: "Kategori / tag", type: "tags", hint: "Pisahkan dengan koma. Dipakai juga sebagai filter di halaman utama (mis. web, design)." },
-    { k: "image_url", label: "Gambar", type: "file", accept: "image/*", folder: "projects", hint: "Opsional. Rasio 16:9 paling pas." },
+    { k: "description", label: "Deskripsi", type: "textarea", rows: 6, hint: "Teks pembuka di halaman project. Pisahkan paragraf dengan baris kosong." },
+    { k: "url", label: "Link project", type: "url", hint: "Opsional. Muncul sebagai “Buka project ↗” di halaman detail." },
+    { k: "tags", label: "Kategori / tag", type: "tags", hint: "Pisahkan dengan koma. Dipakai juga sebagai filter di halaman utama (mis. hunian, interior)." },
+    { k: "image_url", label: "Foto cover (thumbnail kartu)", type: "file", accept: "image/*", folder: "projects", hint: "Tampil di kartu halaman utama. Di halaman project, cover hanya muncul kalau belum ada blok konten." },
     { k: "sort", label: "Urutan", type: "number", hint: "Angka kecil tampil di atas." },
+    { k: "blocks", label: "Konten halaman project", type: "blocks" },
   ],
   cv_items: [
     { k: "type", label: "Bagian", type: "select", options: CV_TYPES },
@@ -36,7 +38,8 @@ const FIELDS = {
 };
 
 const SUMMARY = {
-  projects: r => [r.year, (r.tags || []).join(", ")],
+  projects: r => [r.year, (r.tags || []).join(", "), r.slug ? "/project/" + r.slug : null,
+    Array.isArray(r.blocks) && r.blocks.length ? `${r.blocks.length} blok konten` : null],
   cv_items: r => [CV_TYPES.find(([k]) => k === r.type)?.[1], r.org, r.period],
 };
 
@@ -75,8 +78,22 @@ function parse(f, raw) {
 }
 
 function field(f, v) {
+  if (f.type === "blocks") return blockEditor(f, v);
   let input;
   const extra = [];
+
+  if (f.type === "slug") {
+    input = h("input", { type: "text", placeholder: "otomatis dari judul", spellcheck: "false" });
+    input.value = v ?? "";
+    const show = h("small", { class: "slug-preview" });
+    const upd = () => { show.textContent = "mikhellonkwa.site/project/" + (slugify(input.value) || "…"); };
+    input.addEventListener("input", upd);
+    upd();
+    return {
+      node: h("label", { class: "field" }, h("span", {}, f.label), input, show, h("small", {}, f.hint)),
+      get: () => slugify(input.value),
+    };
+  }
 
   if (f.type === "textarea") {
     input = h("textarea", { rows: f.rows || 4 });
@@ -132,6 +149,178 @@ function field(f, v) {
   return {
     node: h("label", { class: "field" }, h("span", {}, f.label), input, extra, f.hint ? h("small", {}, f.hint) : null),
     get: () => parse(f, input.value),
+  };
+}
+
+// ---------- Editor blok konten (halaman project) ----------
+const BLOCK_TYPES = {
+  text: { label: "Teks", make: () => ({ type: "text", text: "", size: "small" }) },
+  image: { label: "Foto", make: () => ({ type: "image", url: "", caption: "", size: "normal" }) },
+  gallery: { label: "Galeri", make: () => ({ type: "gallery", images: [], columns: 2, size: "normal" }) },
+  slider: { label: "Slider", make: () => ({ type: "slider", images: [], size: "normal" }) },
+  beforeafter: { label: "Before / After", make: () => ({ type: "beforeafter", before: "", after: "", beforeLabel: "Sebelum", afterLabel: "Sesudah", caption: "", size: "normal" }) },
+  video: { label: "Video", make: () => ({ type: "video", url: "", caption: "", autoplay: false, size: "normal" }) },
+};
+const SIZES = [["small", "Lebar: kecil"], ["normal", "Lebar: sedang"], ["full", "Lebar: penuh"]];
+const clone = v => JSON.parse(JSON.stringify(v ?? null));
+
+const iconBtn = (text, label, onclick, disabled) =>
+  h("button", { type: "button", class: "btn ghost sm icon", "aria-label": label, title: label, onclick, disabled: !!disabled }, text);
+
+// Kolom berlabel (div, karena bisa berisi lebih dari satu input).
+const group = (label, ...kids) => h("div", { class: "field" }, h("span", {}, label), kids);
+
+function bindText(obj, key, { area = false, rows = 4, placeholder = "", label = "" } = {}) {
+  const el = area ? h("textarea", { rows, placeholder, "aria-label": label }) : h("input", { type: "text", placeholder, "aria-label": label });
+  el.value = obj[key] ?? "";
+  el.addEventListener("input", () => { obj[key] = el.value; });
+  return el;
+}
+
+// Satu file (foto / video): upload atau tempel URL.
+function mediaInput(obj, key, { accept = "image/*", label = "Foto", hint = "" } = {}) {
+  const url = h("input", { type: "url", placeholder: "Upload file, atau tempel URL", "aria-label": label });
+  url.value = obj[key] || "";
+  const preview = h("div", { class: "preview" });
+  const status = h("span", { class: "status" });
+  const show = () => {
+    const u = url.value.trim();
+    obj[key] = u;
+    const isEmbed = /youtu\.?be|vimeo\.com/.test(u);
+    preview.replaceChildren(!u ? "" : accept.startsWith("image") ? h("img", { src: u, alt: "" })
+      : !isEmbed ? h("video", { src: u, controls: true, preload: "metadata" })
+      : h("a", { href: u, target: "_blank", rel: "noopener" }, "Lihat video ↗"));
+  };
+  const file = h("input", {
+    type: "file", accept, "aria-label": "Pilih file " + label,
+    onchange: async () => {
+      const f = file.files[0];
+      if (!f) return;
+      if (f.size > 50 * 1024 * 1024) { status.textContent = "File lebih dari 50 MB. Kecilkan dulu, atau upload ke YouTube lalu tempel link-nya."; file.value = ""; return; }
+      status.textContent = "Mengupload…";
+      try {
+        url.value = await upload(f, accept.startsWith("video") ? "videos" : "projects");
+        status.textContent = "Terupload ✓";
+        show();
+      } catch (e) { status.textContent = "Gagal upload: " + e.message; }
+      file.value = "";
+    },
+  });
+  url.addEventListener("input", show);
+  show();
+  return group(label, url, file, status, preview, hint ? h("small", {}, hint) : null);
+}
+
+// Banyak foto (galeri / slider): upload sekaligus, atur urutan, kasih keterangan.
+function imagesInput(obj) {
+  obj.images = Array.isArray(obj.images) ? obj.images : [];
+  const list = h("div", { class: "img-list" });
+  const status = h("span", { class: "status" });
+  const swap = (i, j) => { [obj.images[i], obj.images[j]] = [obj.images[j], obj.images[i]]; draw(); };
+  const draw = () => list.replaceChildren(...obj.images.map((im, i) => {
+    const cap = h("input", { type: "text", placeholder: "Keterangan (opsional)", "aria-label": `Keterangan foto ${i + 1}` });
+    cap.value = im.caption || "";
+    cap.addEventListener("input", () => { im.caption = cap.value; });
+    return h("div", { class: "img-item" },
+      h("img", { src: im.url, alt: `Foto ${i + 1}` }),
+      cap,
+      h("div", { class: "img-tools" },
+        iconBtn("←", "Geser ke kiri", () => swap(i, i - 1), i === 0),
+        iconBtn("→", "Geser ke kanan", () => swap(i, i + 1), i === obj.images.length - 1),
+        iconBtn("✕", "Hapus foto ini", () => { obj.images.splice(i, 1); draw(); })));
+  }));
+  const file = h("input", {
+    type: "file", accept: "image/*", multiple: true, "aria-label": "Pilih foto (bisa banyak)",
+    onchange: async () => {
+      const files = [...file.files];
+      for (const [n, f] of files.entries()) {
+        status.textContent = `Mengupload ${n + 1} dari ${files.length}…`;
+        try { obj.images.push({ url: await upload(f, "projects"), caption: "" }); draw(); }
+        catch (e) { status.textContent = "Gagal upload: " + e.message; file.value = ""; return; }
+      }
+      status.textContent = `${files.length} foto terupload ✓`;
+      file.value = "";
+    },
+  });
+  draw();
+  return group("Foto (bisa pilih banyak sekaligus)", file, status, list);
+}
+
+function blockBody(b) {
+  switch (b.type) {
+    case "text":
+      return group("Teks", bindText(b, "text", { area: true, rows: 6, label: "Teks", placeholder: "Pisahkan paragraf dengan baris kosong" }));
+    case "image":
+      return h("div", { class: "blk-body" }, mediaInput(b, "url", { label: "Foto" }), group("Keterangan", bindText(b, "caption", { label: "Keterangan" })));
+    case "gallery": {
+      const cols = h("select", { "aria-label": "Jumlah kolom" }, [1, 2, 3].map(n => h("option", { value: String(n) }, `${n} kolom`)));
+      cols.value = String(b.columns || 2);
+      cols.addEventListener("change", () => { b.columns = +cols.value; });
+      return h("div", { class: "blk-body" }, group("Susunan", cols), imagesInput(b));
+    }
+    case "slider":
+      return h("div", { class: "blk-body" }, imagesInput(b), h("small", { class: "sub" }, "Pengunjung bisa geser foto, atau pakai tombol ← →."));
+    case "beforeafter":
+      return h("div", { class: "blk-body two" },
+        mediaInput(b, "before", { label: "Foto sebelum (kiri)" }),
+        mediaInput(b, "after", { label: "Foto sesudah (kanan)" }),
+        group("Label kiri", bindText(b, "beforeLabel", { label: "Label kiri" })),
+        group("Label kanan", bindText(b, "afterLabel", { label: "Label kanan" })),
+        h("div", { class: "span-2" }, group("Keterangan", bindText(b, "caption", { label: "Keterangan" }))),
+        h("small", { class: "sub span-2" }, "Pakai dua foto dengan ukuran & sudut pandang yang sama supaya hasil geser-nya pas."));
+    case "video": {
+      const ap = h("input", { type: "checkbox" });
+      ap.checked = !!b.autoplay;
+      ap.addEventListener("change", () => { b.autoplay = ap.checked; });
+      return h("div", { class: "blk-body" },
+        mediaInput(b, "url", { accept: "video/*", label: "Video", hint: "Upload MP4 (maks 50 MB), atau tempel link YouTube / Vimeo." }),
+        group("Keterangan", bindText(b, "caption", { label: "Keterangan" })),
+        h("label", { class: "check" }, ap, "Putar otomatis tanpa suara & berulang (khusus file video, bukan YouTube)"));
+    }
+  }
+  return h("p", { class: "sub" }, "Jenis blok tidak dikenal.");
+}
+
+function blockEditor(f, value) {
+  const blocks = Array.isArray(value) ? clone(value) : [];
+  const list = h("div", { class: "blk-list" });
+
+  const move = (i, d) => { const j = i + d; [blocks[i], blocks[j]] = [blocks[j], blocks[i]]; draw(); };
+  const remove = i => { if (confirm("Hapus blok ini?")) { blocks.splice(i, 1); draw(); } };
+
+  function card(b, i) {
+    const size = h("select", { "aria-label": "Lebar blok" }, SIZES.map(([v, l]) => h("option", { value: v }, l)));
+    size.value = b.size || "normal";
+    size.addEventListener("change", () => { b.size = size.value; });
+    return h("div", { class: "blk-card" },
+      h("div", { class: "blk-head" },
+        h("strong", {}, `${i + 1}. ${BLOCK_TYPES[b.type]?.label || b.type}`),
+        h("span", { class: "blk-tools" },
+          size,
+          iconBtn("↑", "Pindah ke atas", () => move(i, -1), i === 0),
+          iconBtn("↓", "Pindah ke bawah", () => move(i, 1), i === blocks.length - 1),
+          iconBtn("✕", "Hapus blok", () => remove(i)))),
+      blockBody(b));
+  }
+
+  const draw = () => list.replaceChildren(...(blocks.length
+    ? blocks.map(card)
+    : [h("p", { class: "sub blk-empty" }, "Belum ada konten. Tambahkan blok di bawah: foto, galeri, slider, before/after, video, atau teks.")]));
+
+  const adders = h("div", { class: "blk-add" },
+    h("span", { class: "sub" }, "+ Tambah:"),
+    Object.entries(BLOCK_TYPES).map(([, d]) => h("button", {
+      type: "button", class: "btn ghost sm",
+      onclick: () => { blocks.push(d.make()); draw(); list.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "center" }); },
+    }, d.label)));
+
+  draw();
+  return {
+    node: h("div", { class: "field blk-editor" },
+      h("span", {}, f.label),
+      h("small", {}, "Susun isi halaman project sesukamu. Atur urutan dengan ↑ ↓ dan lebar tiap blok. Klik Simpan setelah selesai."),
+      list, adders),
+    get: () => clone(blocks),
   };
 }
 
@@ -234,8 +423,10 @@ async function renderList(body, table) {
     formSlot.replaceChildren(h("div", { class: "form-box" },
       h("h3", {}, isNew ? "Tambah baru" : "Edit"),
       buildForm(FIELDS[table], row || {}, async vals => {
+        if (table === "projects") vals.slug = slugify(vals.slug || vals.title) || null;
         const q = isNew ? sb.from(table).insert(vals) : sb.from(table).update(vals).eq("id", row.id);
         const res = await q.select();
+        if (res.error?.code === "23505") throw new Error(`Alamat "${vals.slug}" sudah dipakai project lain. Ganti alamat halamannya.`);
         if (res.error) throw res.error;
         mustChange(res.data);
         renderList(body, table);
@@ -257,6 +448,7 @@ async function renderList(body, table) {
           h("strong", {}, r.title),
           h("div", { class: "sub" }, SUMMARY[table](r).filter(Boolean).join(" · "))),
         h("div", { class: "row-actions" },
+          table === "projects" ? h("a", { class: "btn ghost sm", href: projectUrl(r), target: "_blank", rel: "noopener" }, "Lihat ↗") : null,
           h("button", { class: "btn ghost sm", type: "button", onclick: () => openForm(r) }, "Edit"),
           h("button", { class: "btn ghost sm danger", type: "button", onclick: () => remove(r) }, "Hapus"))))
     : [h("p", { class: "sub" }, "Belum ada data. Klik “+ Tambah”.")];

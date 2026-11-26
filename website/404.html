@@ -3,15 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Halaman tidak ditemukan</title>
+  <title>Mikhellon Kwa</title>
   <meta name="theme-color" content="#000000" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='black'/><text x='50' y='68' font-size='56' font-family='Arial' font-weight='700' text-anchor='middle' fill='white'>M</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Path diawali "/" supaya tetap jalan di alamat /project/<nama> -->
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <main class="wrap">
-    <p class="sub">404</p>
-    <h1 style="font-weight:400;font-size:1.8rem;margin:8px 0 24px">Halaman tidak ditemukan.</h1>
-    <a class="ul" href="/">← Kembali ke beranda</a>
-  </main>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar" aria-label="Sidebar">
+      <a class="side-brand brand js-brand" href="/">Mikhellon Kwa</a>
+      <nav class="side-body" id="side-body" aria-label="Link"></nav>
+    </aside>
+    <div class="side-overlay" id="overlay"></div>
+
+    <div class="main">
+      <header class="topbar">
+        <a class="brand js-brand" href="/">Mikhellon Kwa</a>
+        <button class="menu-btn" id="menuBtn" type="button" aria-label="Buka menu" aria-expanded="false" aria-controls="sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+      </header>
+
+      <main class="container">
+        <div id="app"><p class="sub" style="padding:96px 0">Memuat…</p></div>
+      </main>
+
+      <footer class="site-footer">
+        <div class="container"><span id="copy"></span><span id="host"></span></div>
+      </footer>
+    </div>
+  </div>
+
+  <script type="module" src="/project.js"></script>
 </body>
 </html>

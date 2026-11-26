@@ -3,5 +3,7 @@ supabase-setup.sql
 data-profil.txt
 PANDUAN.md
 desktop.ini
+.claude/
+__pycache__/
 .tmp.drivedownload/
 .tmp.driveupload/

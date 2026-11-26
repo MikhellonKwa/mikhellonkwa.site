@@ -16,10 +16,30 @@ export const DEMO = {
     cv_url: "#cv", // contoh saja; nanti diganti PDF yang diupload dari admin
   },
   projects: [
-    { id: "d1", title: "Kasir Online", year: "2026", subtitle: "Aplikasi kasir sederhana untuk UMKM", tags: ["web", "product"], description: "Ceritakan masalahnya, peran kamu, prosesnya, dan hasilnya di sini.", url: "", image_url: "" },
-    { id: "d2", title: "Redesign Aplikasi Kampus", year: "2025", subtitle: "Studi kasus UI/UX", tags: ["design"], description: "Deskripsi lengkap project.", url: "", image_url: "" },
-    { id: "d3", title: "Dashboard Data", year: "2025", subtitle: "Visualisasi data penjualan", tags: ["web", "data"], description: "Deskripsi lengkap project.", url: "", image_url: "" },
-    { id: "d4", title: "Landing Page Event", year: "2024", subtitle: "Website acara himpunan", tags: ["web", "design"], description: "Deskripsi lengkap project.", url: "", image_url: "" },
+    {
+      id: "d1", slug: "rumah-contoh", title: "Rumah Contoh", year: "2026", subtitle: "Contoh halaman project dengan semua jenis blok",
+      tags: ["hunian"], description: "Ceritakan masalahnya, peran kamu, prosesnya, dan hasilnya di sini.", url: "",
+      image_url: "https://picsum.photos/id/1040/1200/900",
+      blocks: [
+        { type: "image", url: "https://picsum.photos/id/1040/1600/900", caption: "Foto besar dengan lebar penuh", size: "full" },
+        { type: "text", text: "Blok teks untuk bercerita di antara foto.\n\nBisa beberapa paragraf.", size: "small" },
+        { type: "gallery", columns: 3, size: "normal", images: [
+          { url: "https://picsum.photos/id/1048/900/700", caption: "" },
+          { url: "https://picsum.photos/id/1067/900/700", caption: "" },
+          { url: "https://picsum.photos/id/1076/900/700", caption: "" },
+        ] },
+        { type: "slider", size: "normal", images: [
+          { url: "https://picsum.photos/id/1031/1400/900", caption: "Slide 1" },
+          { url: "https://picsum.photos/id/1033/1400/900", caption: "Slide 2" },
+          { url: "https://picsum.photos/id/1029/1400/900", caption: "Slide 3" },
+        ] },
+        { type: "beforeafter", before: "https://picsum.photos/id/1040/1400/900?grayscale", after: "https://picsum.photos/id/1040/1400/900", beforeLabel: "Sebelum", afterLabel: "Sesudah", caption: "Geser untuk membandingkan", size: "normal" },
+        { type: "video", url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", caption: "Contoh video", autoplay: false, size: "normal" },
+      ],
+    },
+    { id: "d2", slug: "redesign-aplikasi-kampus", title: "Redesign Aplikasi Kampus", year: "2025", subtitle: "Studi kasus UI/UX", tags: ["design"], description: "Deskripsi lengkap project.", url: "", image_url: "" },
+    { id: "d3", slug: "dashboard-data", title: "Dashboard Data", year: "2025", subtitle: "Visualisasi data penjualan", tags: ["web", "data"], description: "Deskripsi lengkap project.", url: "", image_url: "" },
+    { id: "d4", slug: "landing-page-event", title: "Landing Page Event", year: "2024", subtitle: "Website acara himpunan", tags: ["web", "design"], description: "Deskripsi lengkap project.", url: "", image_url: "" },
   ],
   cv: [
     { type: "pengalaman", title: "Posisi / Peran", org: "Nama Perusahaan", period: "2025 — Sekarang", description: "Apa yang kamu kerjakan dan capai." },

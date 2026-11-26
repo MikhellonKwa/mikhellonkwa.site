@@ -8,8 +8,23 @@ export const CV_TYPES = [
   ["sertifikat", "Sertifikat & Penghargaan"],
 ];
 
-export const isConfigured =
+// Khusus tes di komputer sendiri: localStorage "portfolio-force-demo" = "1"
+// memaksa mode demo (data contoh) tanpa menyentuh database asli.
+const forceDemo = ["localhost", "127.0.0.1"].includes(location.hostname) &&
+  localStorage.getItem("portfolio-force-demo") === "1";
+
+export const isConfigured = !forceDemo &&
   SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("GANTI") && !SUPABASE_ANON_KEY.includes("GANTI");
+
+// "Judul Project Saya!" → "judul-project-saya"
+export function slugify(text) {
+  return (text || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+}
+
+// Alamat halaman project: /project/<slug>
+export const projectUrl = p =>
+  p.slug ? `/project/${encodeURIComponent(p.slug)}` : `/project.html?id=${encodeURIComponent(p.id)}`;
 
 let client;
 // Kalau config.js belum diisi → pakai mode demo (data di browser saja).

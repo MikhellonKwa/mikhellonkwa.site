@@ -1,4 +1,4 @@
-import { getClient, isConfigured, CV_TYPES, h, safeUrl } from "./db.js";
+import { getClient, isConfigured, CV_TYPES, h, safeUrl, projectUrl } from "./db.js";
 import { setupChrome, hideMissingNav, reveal, initials, paragraphs, renderSidebar, initDrawer, profileLinks } from "./site.js";
 
 const app = document.getElementById("app");
@@ -34,7 +34,7 @@ function intro(p) {
 // ---------- Work: filter + grid kartu ----------
 function card(p) {
   const img = safeUrl(p.image_url);
-  return h("a", { class: "card reveal", href: `project.html?id=${encodeURIComponent(p.id)}` },
+  return h("a", { class: "card reveal", href: projectUrl(p) },
     h("div", { class: "media" },
       img
         ? h("img", { src: img, alt: "", loading: "lazy", decoding: "async" })
