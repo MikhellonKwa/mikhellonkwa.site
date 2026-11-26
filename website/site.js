@@ -85,6 +85,42 @@ export function hideMissingNav() {
   });
 }
 
+// Link ke bagian di halaman yang sama (#work, #about, …) cukup menggulir ke
+// sana, tanpa menambah "#…" ke alamat. Alamat tetap https://mikhellonkwa.site/
+export function cleanHashNav(onSection) {
+  const smooth = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+  const clean = () => history.replaceState(null, "", location.pathname + location.search);
+  const go = (id, behavior) => {
+    const el = document.getElementById(id);
+    if (!el) return false;
+    onSection?.(id);
+    el.scrollIntoView({ behavior, block: "start" });
+    return true;
+  };
+
+  document.addEventListener("click", e => {
+    const a = e.target.closest("a[href]");
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (a.classList.contains("skip")) return;
+    const u = new URL(a.getAttribute("href"), location.href);
+    if (u.origin !== location.origin || u.pathname !== location.pathname) return;
+    if (!u.hash || u.hash === "#" || u.hash === "#top") {
+      e.preventDefault();
+      scrollTo({ top: 0, behavior: smooth() });
+      clean();
+      return;
+    }
+    if (go(decodeURIComponent(u.hash.slice(1)), smooth())) { e.preventDefault(); clean(); }
+  });
+
+  // Datang dari halaman lain lewat /#research, /#about, dll.
+  if (location.hash) {
+    const id = decodeURIComponent(location.hash.slice(1));
+    clean();
+    requestAnimationFrame(() => go(id, "auto"));
+  }
+}
+
 // Menu sidebar di HP (buka/tutup).
 export function initDrawer() {
   const btn = document.getElementById("menuBtn");

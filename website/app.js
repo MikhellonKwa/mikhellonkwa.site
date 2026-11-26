@@ -1,5 +1,5 @@
 import { getClient, isConfigured, CV_TYPES, h, safeUrl, projectUrl } from "./db.js";
-import { setupChrome, hideMissingNav, reveal, initials, paragraphs, renderSidebar, initDrawer, profileLinks } from "./site.js";
+import { setupChrome, hideMissingNav, reveal, initials, paragraphs, renderSidebar, initDrawer, profileLinks, cleanHashNav } from "./site.js";
 
 const app = document.getElementById("app");
 initDrawer();
@@ -47,6 +47,7 @@ function card(p) {
 
 // Tab Work | Research, lalu filter kategori, lalu grid kartu.
 const KINDS = [["work", "Work"], ["research", "Research"]];
+let selectKind = () => {};
 const kindOf = p => (p.kind === "research" ? "research" : "work");
 
 function work(projects) {
@@ -61,7 +62,7 @@ function work(projects) {
   const tabs = h("div", { class: "kind-tabs", role: "tablist", "aria-label": "Jenis project" },
     kinds.map(([k, label]) => h("button", {
       type: "button", role: "tab", class: "kind-tab", "data-k": k,
-      onclick: () => { if (kind !== k) { history.replaceState(null, "", "#" + k); select(k); } },
+      onclick: () => { if (kind !== k) select(k); },
     }, label, h("sup", {}, String(byKind[k].length)))));
 
   function showTag(t) {
@@ -91,11 +92,8 @@ function work(projects) {
     showTag("all");
   }
 
-  // Link sidebar "Work" / "Research" ikut mengganti tab.
-  addEventListener("hashchange", () => {
-    const k = location.hash.slice(1);
-    if (byKind[k]?.length && k !== kind) select(k);
-  });
+  // Menu sidebar "Work" / "Research" ikut mengganti tab.
+  selectKind = k => { if (byKind[k]?.length && k !== kind) select(k); };
 
   if (!projects.length) {
     return h("section", { class: "work", id: "work", "aria-label": "Project" },
@@ -159,6 +157,8 @@ function render({ profile: p, projects, cv, demo }) {
 
   hideMissingNav();
   reveal();
+  // Menu di halaman ini menggulir ke bagiannya tanpa menambah #… ke alamat.
+  cleanHashNav(id => selectKind(id));
 }
 
 load().then(render).catch(e => {
