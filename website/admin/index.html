@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Admin</title>
+  <meta name="theme-color" content="#000000" />
+  <link rel="stylesheet" href="../style.css" />
+  <style>
+    .wrap { padding-top: 56px; }
+    .login { max-width: 340px; margin: 12vh auto 0; display: grid; gap: 12px; }
+    .login h1 { font-size: 1.3rem; font-weight: 600; }
+    .login .sub { margin-bottom: 8px; }
+
+    input, textarea, select {
+      width: 100%; background: var(--card); color: var(--fg);
+      border: 1px solid #262626; border-radius: 6px; padding: 10px 12px;
+      font: inherit; font-size: .93rem; outline: none; transition: border-color .15s;
+    }
+    input:focus, textarea:focus, select:focus { border-color: #6b6b6b; }
+    textarea { resize: vertical; line-height: 1.55; }
+    input[type="file"] { padding: 8px; font-size: .85rem; color: var(--muted); }
+
+    .btn {
+      background: var(--fg); color: #000; border: 1px solid var(--fg); border-radius: 6px;
+      padding: 9px 16px; font: inherit; font-size: .9rem; font-weight: 500; cursor: pointer;
+      transition: opacity .15s, background .15s, color .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .btn.ghost { background: transparent; color: var(--fg); border-color: #2e2e2e; }
+    .btn.ghost:hover { border-color: #6b6b6b; opacity: 1; }
+    .btn.sm { padding: 5px 11px; font-size: .82rem; }
+    .btn.danger:hover { border-color: #b33; color: #f66; }
+
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .topbar .right { display: flex; align-items: center; gap: 16px; font-size: .9rem; }
+    .tabs { display: flex; gap: 24px; margin: 36px 0 28px; border-bottom: 1px solid var(--line); }
+    .tabs button {
+      background: none; border: 0; color: var(--dim); font: inherit; font-size: .95rem;
+      padding: 0 0 12px; cursor: pointer; border-bottom: 1px solid transparent; margin-bottom: -1px;
+    }
+    .tabs button:hover { color: var(--soft); }
+    .tabs button.active { color: var(--fg); border-bottom-color: var(--fg); }
+
+    .form { display: grid; gap: 18px; }
+    .field { display: grid; gap: 6px; }
+    .field > span { font-size: .85rem; color: var(--soft); }
+    .field small { color: var(--dim); font-size: .78rem; }
+    .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .status { color: var(--muted); font-size: .85rem; }
+    .preview img { max-width: 240px; border: 1px solid var(--line); border-radius: 6px; margin-top: 4px; }
+    .preview a { font-size: .85rem; }
+
+    .list-head { margin-bottom: 8px; }
+    .form-box { border: 1px solid var(--line); border-radius: 8px; padding: 22px; margin: 16px 0 24px; }
+    .form-box h3 { font-size: 1rem; font-weight: 500; margin-bottom: 16px; }
+    .row-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .item.row { align-items: center; }
+    .item strong { font-weight: 500; }
+    @media (max-width: 520px) { .item.row { flex-direction: row; } }
+  </style>
+</head>
+<body>
+  <main class="wrap" id="admin">
+    <p class="sub">Memuat…</p>
+  </main>
+  <script type="module" src="admin.js"></script>
+</body>
+</html>

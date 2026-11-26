@@ -1,0 +1,7 @@
+# File privat — jangan ikut di-upload ke GitHub
+supabase-setup.sql
+data-profil.txt
+PANDUAN.md
+desktop.ini
+.tmp.drivedownload/
+.tmp.driveupload/
