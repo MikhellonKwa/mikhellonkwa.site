@@ -1,5 +1,5 @@
 import { getClient, isConfigured, CV_TYPES, h, safeUrl, projectUrl } from "./db.js";
-import { setupChrome, hideMissingNav, reveal, initials, paragraphs, renderSidebar, initDrawer, profileLinks, cleanHashNav, maintenanceGate } from "./site.js";
+import { setupChrome, hideMissingNav, reveal, initials, paragraphs, renderSidebar, initDrawer, cleanHashNav, maintenanceGate } from "./site.js";
 
 const app = document.getElementById("app");
 initDrawer();
@@ -17,14 +17,6 @@ async function load() {
 }
 
 const ext = (url, text, cls) => h("a", { href: url, target: "_blank", rel: "noopener", class: cls }, text);
-
-// ---------- Tombol link (hanya di HP; di desktop sudah ada di sidebar) ----------
-function intro(p) {
-  const pills = profileLinks(p).map(l => l.url.startsWith("mailto:")
-    ? h("a", { class: "pill", href: l.url }, l.label)
-    : ext(l.url, l.label, l.icon === "cv" ? "pill solid" : "pill"));
-  return pills.length ? h("section", { class: "intro" }, h("div", { class: "pills reveal" }, pills)) : null;
-}
 
 // "2027 | Jakarta, Indonesia"
 const yearPlace = p => [p.year, p.location].filter(Boolean).join(" | ");
@@ -119,7 +111,6 @@ function render({ profile: p, projects, cv, demo }) {
 
   app.replaceChildren(...[
     demo ? h("div", { class: "notice" }, "Demo mode: data is only stored in this browser.") : null,
-    intro(p),
     projectSection("design", "Design", projects.filter(x => !isResearch(x)), "No design projects yet."),
     projects.some(isResearch) ? projectSection("research", "Research", projects.filter(isResearch), "") : null,
     p.bio ? block("about", "About", h("div", { class: "prose" }, paragraphs(p.bio).map(t => h("p", {}, t)))) : null,
