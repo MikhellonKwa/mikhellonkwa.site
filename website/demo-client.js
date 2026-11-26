@@ -15,7 +15,7 @@ const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()
 function seed() {
   return {
     profile: [{ id: 1, ...DEMO.profile }],
-    projects: DEMO.projects.map((p, i) => ({ sort: i, created_at: now(), ...p })),
+    projects: DEMO.projects.map((p, i) => ({ sort: i, kind: "work", created_at: now(), ...p })),
     cv_items: DEMO.cv.map((c, i) => ({ id: "c" + (i + 1), sort: i, created_at: now(), ...c })),
   };
 }

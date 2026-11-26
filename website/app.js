@@ -1,4 +1,4 @@
-import { getClient, isConfigured, CV_TYPES, h, safeUrl, projectUrl } from "./db.js";
+import { getClient, isConfigured, CV_TYPES, h, safeUrl, projectUrl, fmtPeriod, sortProjects, sortCv } from "./db.js";
 import { setupChrome, hideMissingNav, reveal, initials, paragraphs, renderSidebar, initDrawer, cleanHashNav, maintenanceGate } from "./site.js";
 
 const app = document.getElementById("app");
@@ -8,12 +8,13 @@ async function load() {
   const sb = await getClient();
   const [p, pr, cv] = await Promise.all([
     sb.from("profile").select("*").eq("id", 1).maybeSingle(),
-    sb.from("projects").select("*").order("sort").order("created_at", { ascending: false }),
-    sb.from("cv_items").select("*").order("sort").order("created_at", { ascending: false }),
+    sb.from("projects").select("*").order("created_at", { ascending: false }),
+    sb.from("cv_items").select("*").order("created_at", { ascending: false }),
   ]);
   const err = p.error || pr.error || cv.error;
   if (err) throw err;
-  return { profile: p.data || {}, projects: pr.data || [], cv: cv.data || [], demo: !isConfigured };
+  // Urutan otomatis: tahun / periode terbaru di atas.
+  return { profile: p.data || {}, projects: sortProjects(pr.data || []), cv: sortCv(cv.data || []), demo: !isConfigured };
 }
 
 const ext = (url, text, cls) => h("a", { href: url, target: "_blank", rel: "noopener", class: cls }, text);
@@ -82,7 +83,7 @@ function cvBlock(cv, skills) {
     .map(([label, items]) => h("div", { class: "cv-group" },
       h("h3", {}, label),
       items.map(r => h("div", { class: "cv-row" },
-        h("span", { class: "period" }, r.period || ""),
+        h("span", { class: "period" }, fmtPeriod(r.start_ym, r.end_ym) || r.period || ""),
         h("div", {},
           h("p", { class: "t" }, r.title),
           r.org ? h("p", { class: "o" }, r.org) : null,

@@ -4,6 +4,8 @@ data-profil.txt
 PANDUAN.md
 desktop.ini
 .claude/
+launch-video/assets/
+launch-video/out/
 __pycache__/
 .tmp.drivedownload/
 .tmp.driveupload/

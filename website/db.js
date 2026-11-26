@@ -2,11 +2,38 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 export const BUCKET = "portfolio";
 export const CV_TYPES = [
-  ["pengalaman", "Pengalaman"],
-  ["pendidikan", "Pendidikan"],
-  ["organisasi", "Organisasi"],
-  ["sertifikat", "Sertifikat & Penghargaan"],
+  ["pengalaman", "Experience"],
+  ["pendidikan", "Education"],
+  ["organisasi", "Organizations"],
+  ["sertifikat", "Certificates & Awards"],
 ];
+
+// ---------- Periode (bulan & tahun) ----------
+export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const ym = v => {
+  const m = /^(\d{4})-(\d{2})$/.exec(v || "");
+  return m ? `${MONTHS[+m[2] - 1] || ""} ${m[1]}`.trim() : "";
+};
+// "Jan 2024 — Present", "Mar 2023 — Feb 2024", "Jun 2022"
+export function fmtPeriod(start, end) {
+  const s = ym(start);
+  const e = end === "present" ? "Present" : ym(end);
+  return s && e ? `${s} — ${e}` : s || e;
+}
+
+// ---------- Urutan otomatis: terbaru di atas ----------
+const created = r => r.created_at || "";
+export function sortProjects(list) {
+  const y = r => parseInt(r.year, 10) || -1;
+  return [...list].sort((a, b) => y(b) - y(a) || created(b).localeCompare(created(a)));
+}
+export function sortCv(list) {
+  const endKey = r => (r.end_ym === "present" ? "9999-99" : r.end_ym || r.start_ym || "");
+  return [...list].sort((a, b) =>
+    endKey(b).localeCompare(endKey(a)) ||
+    (b.start_ym || "").localeCompare(a.start_ym || "") ||
+    created(b).localeCompare(created(a)));
+}
 
 // Khusus tes di komputer sendiri: localStorage "portfolio-force-demo" = "1"
 // memaksa mode demo (data contoh) tanpa menyentuh database asli.

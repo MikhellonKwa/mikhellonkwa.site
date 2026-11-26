@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Launch video — mikhellonkwa.site</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  body { margin: 0; background: #111; color: #ddd; font: 14px system-ui, sans-serif; display: flex; gap: 24px; padding: 24px; }
+  canvas { width: 360px; height: 640px; background: #000; border: 1px solid #333; }
+  .panel { display: grid; gap: 12px; align-content: start; max-width: 360px; }
+  button { padding: 10px 14px; font: inherit; cursor: pointer; }
+  input[type=range] { width: 100%; }
+  #log { white-space: pre-wrap; color: #9f9; font-family: ui-monospace, monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<div class="panel">
+  <strong>Launch video · 1080×1920 · 30fps · 60s</strong>
+  <input id="scrub" type="range" min="0" max="60" step="0.0333" value="0" />
+  <div><span id="tlabel">0.00s</span></div>
+  <button id="play">▶ Preview</button>
+  <button id="render">⬇ Render MP4</button>
+  <div id="log"></div>
+</div>
+
+<script type="module">
+// ================================================================
+// Animasi launching mikhellonkwa.site — digambar di <canvas>,
+// lalu di-encode jadi MP4 (H.264) frame demi frame lewat WebCodecs.
+// ================================================================
+const W = 1080, H = 1920, FPS = 30, DURATION = 60, SAFE = 0.8;
+const cv = document.getElementById("c");
+const ctx = cv.getContext("2d");
+
+const C = {
+  bg: "#000", fg: "#f2f2f2", soft: "#d4d4d4", muted: "#a3a3a3", dim: "#7a7a7a",
+  line: "#1f1f1f", tile: "#121212", side: "#0f0f0f", frame: "#1a1a1a",
+};
+const FONT = '"Space Grotesk", system-ui, sans-serif';
+
+// ---------- util ----------
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, p) => a + (b - a) * p;
+const easeOut = p => 1 - Math.pow(1 - p, 3);
+const easeInOut = p => (p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+const easeOutBack = p => { const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+
+function text(str, x, y, o = {}) {
+  const { size = 40, weight = 500, color = C.fg, align = "left", alpha = 1, ls = 0, base = "alphabetic" } = o;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.font = `${weight} ${size}px ${FONT}`;
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = base;
+  ctx.letterSpacing = ls + "px";
+  ctx.fillText(str, x, y);
+  ctx.restore();
+}
+function measure(str, size, weight = 500, ls = 0) {
+  ctx.save(); ctx.font = `${weight} ${size}px ${FONT}`; ctx.letterSpacing = ls + "px";
+  const w = ctx.measureText(str).width; ctx.restore(); return w;
+}
+function rr(x, y, w, h, r) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+}
+function fillRR(x, y, w, h, r, color, alpha = 1) {
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.fillStyle = color; rr(x, y, w, h, r); ctx.fill(); ctx.restore();
+}
+function strokeRR(x, y, w, h, r, color, lw = 2, alpha = 1) {
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.strokeStyle = color; ctx.lineWidth = lw; rr(x, y, w, h, r); ctx.stroke(); ctx.restore();
+}
+function cover(img, x, y, w, h, { filter = "none", ox = .5, oy = .5, zoom = 1 } = {}) {
+  const s = Math.max(w / img.width, h / img.height) * zoom;
+  const dw = img.width * s, dh = img.height * s;
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.filter = filter;
+  ctx.drawImage(img, x + (w - dw) * ox, y + (h - dh) * oy, dw, dh);
+  ctx.restore();
+}
+// Garis abu-abu sebagai pengganti teks (skeleton).
+function bars(x, y, widths, { h = 10, gap = 18, color = "#262626", alpha = 1 } = {}) {
+  widths.forEach((w, i) => fillRR(x, y + i * (h + gap), w, h, h / 2, color, alpha));
+}
+// Pil seperti tombol di website.
+function pill(label, x, y, { size = 30, solid = false, alpha = 1, align = "left" } = {}) {
+  const padX = size * .75, h = size * 2;
+  const w = measure(label, size, 500) + padX * 2;
+  const px = align === "center" ? x - w / 2 : x;
+  ctx.save(); ctx.globalAlpha *= alpha;
+  if (solid) fillRR(px, y, w, h, h / 2, C.fg); else strokeRR(px, y, w, h, h / 2, "#3a3a3a", 2);
+  text(label, px + w / 2, y + h / 2 + 1, { size, color: solid ? "#000" : C.soft, align: "center", base: "middle" });
+  ctx.restore();
+  return w;
+}
+// Fade masuk/keluar per adegan + sedikit geser.
+function scene(t, a, b, draw, fade = .55) {
+  if (t < a - .001 || t > b + .001) return;
+  const inP = easeOut(prog(t, a, a + fade));
+  const outP = easeInOut(prog(t, b - fade, b));
+  const alpha = Math.min(inP, 1 - outP);
+  if (alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(0, (1 - inP) * 40 - outP * 40);
+  draw(t - a);
+  ctx.restore();
+}
+// Judul adegan (2 baris, rata kiri).
+function headline(lines, lt, { y = 300, size = 92, delay = 0 } = {}) {
+  lines.forEach((line, i) => {
+    const p = easeOut(prog(lt, .15 + delay + i * .18, .9 + delay + i * .18));
+    text(line, 90, y + i * size * 1.12 + (1 - p) * 36, { size, weight: 600, alpha: p, ls: -size * .03 });
+  });
+}
+function kicker(label, lt, y = 190) {
+  const p = easeOut(prog(lt, 0, .6));
+  text(label.toUpperCase(), 90, y, { size: 28, weight: 500, color: C.dim, ls: 5, alpha: p });
+}
+
+// ---------- mockup perangkat ----------
+function phone(x, y, w, h, drawScreen) {
+  const r = w * .14, b = w * .035;
+  ctx.save();
+  ctx.shadowColor = "rgba(255,255,255,.06)"; ctx.shadowBlur = 60;
+  fillRR(x, y, w, h, r, C.frame);
+  ctx.restore();
+  strokeRR(x, y, w, h, r, "#2b2b2b", 2);
+  const sx = x + b, sy = y + b, sw = w - b * 2, sh = h - b * 2;
+  ctx.save(); rr(sx, sy, sw, sh, r - b); ctx.clip();
+  fillRR(sx, sy, sw, sh, 0, C.bg);
+  drawScreen(sx, sy, sw, sh);
+  ctx.restore();
+  fillRR(x + w / 2 - w * .14, y + b + 14, w * .28, 30, 15, "#000"); // notch
+}
+function browser(x, y, w, h, url, drawContent) {
+  ctx.save(); ctx.shadowColor = "rgba(255,255,255,.05)"; ctx.shadowBlur = 50;
+  fillRR(x, y, w, h, 22, "#151515"); ctx.restore();
+  strokeRR(x, y, w, h, 22, "#2b2b2b", 2);
+  const bar = 64;
+  ["#3a3a3a", "#3a3a3a", "#3a3a3a"].forEach((c, i) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + 34 + i * 26, y + bar / 2, 8, 0, 7); ctx.fill(); });
+  fillRR(x + 130, y + 14, w - 170, bar - 28, 18, "#0a0a0a");
+  text(url, x + 130 + (w - 170) / 2, y + bar / 2 + 1, { size: 22, color: C.muted, align: "center", base: "middle" });
+  ctx.save(); rr(x + 2, y + bar, w - 4, h - bar - 2, 20); ctx.clip();
+  fillRR(x, y + bar, w, h - bar, 0, C.bg);
+  drawContent(x + 2, y + bar, w - 4, h - bar - 2);
+  ctx.restore();
+}
+
+// ---------- tampilan website (digambar ulang) ----------
+function siteDesktop(x, y, w, h, lt, { highlight = "design" } = {}) {
+  const s = w / 1300; // skala dari layout asli 1300px
+  const sw = 260 * s;
+  fillRR(x, y, sw, h, 0, C.side);
+  ctx.fillStyle = C.line; ctx.fillRect(x + sw, y, 1.5, h);
+  text("Mikhellon Kwa", x + 24 * s, y + 38 * s, { size: 17 * s, weight: 600 });
+  ctx.fillStyle = C.line; ctx.fillRect(x, y + 64 * s, sw, 1.5);
+  ["LinkedIn", "Email", "GitHub", "Instagram"].forEach((l, i) => {
+    const yy = y + (100 + i * 42) * s;
+    strokeRR(x + 26 * s, yy - 13 * s, 16 * s, 16 * s, 4 * s, C.muted, 1.5);
+    text(l, x + 54 * s, yy, { size: 16 * s, color: C.soft });
+  });
+  ctx.fillStyle = C.line; ctx.fillRect(x + 24 * s, y + 262 * s, sw - 48 * s, 1.5);
+  ["Design", "Research", "About", "Experience", "Contact"].forEach((l, i) => {
+    const yy = y + (298 + i * 42) * s;
+    const on = l.toLowerCase() === highlight;
+    if (on) fillRR(x + 12 * s, yy - 26 * s, sw - 24 * s, 38 * s, 6 * s, "#1c1c1c");
+    fillRR(x + 26 * s, yy - 13 * s, 16 * s, 16 * s, 3 * s, on ? C.fg : "#333");
+    text(l, x + 54 * s, yy, { size: 16 * s, color: on ? C.fg : C.muted });
+  });
+
+  const mx = x + sw + 40 * s, mw = w - sw - 80 * s;
+  text("Design", mx, y + 92 * s, { size: 32 * s, weight: 600, ls: -1 });
+  text("1", mx + measure("Design", 32 * s, 600, -1) + 8 * s, y + 74 * s, { size: 13 * s, color: C.dim });
+  ["all", "residential", "urban", "interior"].forEach((f, i) => {
+    text(f, mx + [0, 50, 160, 230][i] * s, y + 145 * s, { size: 17 * s, color: i === 0 ? C.fg : C.dim });
+  });
+  const cw = (mw - 40 * s) / 3, ch = cw * 25 / 32;
+  for (let i = 0; i < 3; i++) {
+    const p = easeOutBack(prog(lt, .4 + i * .15, 1.2 + i * .15));
+    const cx = mx + i * (cw + 20 * s), cy = y + 185 * s + (1 - p) * 40 * s;
+    ctx.save(); ctx.globalAlpha *= clamp(p);
+    if (i === 0) cover(IMG.render, cx, cy, cw, ch, { oy: .45 });
+    else {
+      const g = ctx.createLinearGradient(cx, cy, cx + cw, cy + ch);
+      g.addColorStop(0, "#161616"); g.addColorStop(1, "#0d0d0d");
+      ctx.fillStyle = g; ctx.fillRect(cx, cy, cw, ch);
+    }
+    if (i === 0) {
+      text("2027 | Nusantiri, Indonesia", cx, cy + ch + 26 * s, { size: 12 * s, color: C.dim });
+      text("DESIGN PROJECT", cx, cy + ch + 48 * s, { size: 15 * s, weight: 700 });
+      bars(cx, cy + ch + 62 * s, [cw * .55], { h: 9 * s });
+    } else bars(cx, cy + ch + 18 * s, [cw * .4, cw * .7, cw * .55], { h: 9 * s, gap: 12 * s });
+    ctx.restore();
+  }
+  ctx.fillStyle = C.line; ctx.fillRect(mx, y + 560 * s, mw, 1.5);
+  text("Research", mx, y + 640 * s, { size: 32 * s, weight: 600, ls: -1 });
+}
+
+// ---------- adegan ----------
+const IMG = {};
+
+// 1. Alamat diketik → "is live."
+function s1(lt) {
+  const url = "mikhellonkwa.site";
+  const n = Math.floor(lerp(0, url.length, prog(lt, .6, 2.3)));
+  const lift = easeInOut(prog(lt, 2.7, 3.4));
+  const y = H / 2 - 40 - lift * 120;
+  const fs = 64, typed = url.slice(0, n);
+  const tw = measure(url, fs, 500);
+  fillRR(W / 2 - tw / 2 - 70, y - 70, tw + 140, 140, 70, "#111");
+  strokeRR(W / 2 - tw / 2 - 70, y - 70, tw + 140, 140, 70, "#2a2a2a", 2);
+  const x0 = W / 2 - tw / 2;
+  text(typed, x0, y + 2, { size: fs, base: "middle" });
+  if (Math.floor(lt * 2.2) % 2 === 0 || n < url.length) {
+    const cx = x0 + measure(typed, fs, 500) + 6;
+    fillRR(cx, y - 36, 5, 72, 2, C.fg, lift > .5 ? 0 : 1);
+  }
+  const p = easeOut(prog(lt, 3.1, 3.9));
+  text("is live.", W / 2, y + 230 + (1 - p) * 40, { size: 150, weight: 600, align: "center", alpha: p, ls: -5 });
+}
+
+// 2. Perkenalan
+function s2(lt) {
+  kicker("Introducing", lt, 760);
+  const p = easeOut(prog(lt, .2, 1.1));
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 780, W, 260); ctx.clip();
+  text("Mikhellon", 90, 900 + (1 - p) * 160, { size: 150, weight: 600, ls: -5 });
+  text("Kwa", 90, 1050 + (1 - easeOut(prog(lt, .35, 1.25))) * 160, { size: 150, weight: 600, ls: -5 });
+  ctx.restore();
+  const lp = easeInOut(prog(lt, 1.2, 2.2));
+  ctx.fillStyle = "#3a3a3a"; ctx.fillRect(90, 1120, (W - 180) * lp, 2);
+  const q = easeOut(prog(lt, 1.6, 2.4));
+  text("Portfolio of Design & Research", 90, 1200 + (1 - q) * 20, { size: 46, color: C.muted, alpha: q });
+}
+
+// 3. Website di desktop
+function s3(lt) {
+  kicker("01 — The site", lt);
+  headline(["One home for", "every project."], lt);
+  const p = easeOut(prog(lt, .7, 1.6));
+  const bw = 960, bh = 640, bx = 60, by = 650 + (1 - p) * 120;
+  ctx.save(); ctx.globalAlpha *= p;
+  browser(bx, by, bw, bh, "mikhellonkwa.site", (x, y, w, h) => {
+    const scroll = easeInOut(prog(lt, 4.2, 6.5)) * 120;
+    ctx.save(); ctx.translate(0, -scroll);
+    siteDesktop(x, y, w, h + 200, lt - .8, { highlight: lt > 4.2 ? "research" : "design" });
+    ctx.restore();
+  });
+  ctx.restore();
+  const chips = ["Design", "Research", "About", "Experience"];
+  let cx = 90;
+  chips.forEach((c, i) => {
+    const q = easeOutBack(prog(lt, 2 + i * .2, 2.7 + i * .2));
+    cx += pill(c, cx, 1390 + (1 - q) * 30, { size: 30, alpha: clamp(q) }) + 16;
+  });
+  const q = easeOut(prog(lt, 3, 3.8));
+  text("Design and Research, each with its own section,", 90, 1580, { size: 34, color: C.muted, alpha: q });
+  text("filters, and clean links.", 90, 1630, { size: 34, color: C.muted, alpha: q });
+}
+
+// 4. Halaman project di HP
+function s4(lt) {
+  kicker("02 — Projects", lt);
+  headline(["Projects that tell", "the whole story."], lt);
+  const p = easeOut(prog(lt, .6, 1.5));
+  const pw = 520, ph = 1060, px = 90, py = 640 + (1 - p) * 160;
+  ctx.save(); ctx.globalAlpha *= p;
+  phone(px, py, pw, ph, (x, y, w, h) => {
+    const scroll = easeInOut(prog(lt, 2, 6.2)) * 900;
+    ctx.save(); ctx.translate(0, -scroll);
+    text("Mikhellon Kwa", x + 26, y + 92, { size: 20, weight: 600 });
+    ctx.fillStyle = C.line; ctx.fillRect(x, y + 118, w, 1.5);
+    text("← All projects", x + 26, y + 170, { size: 17, color: C.muted });
+    text("2027 | Nusantiri, Indonesia", x + 26, y + 220, { size: 15, color: C.dim });
+    text("DESIGN PROJECT", x + 26, y + 268, { size: 40, weight: 700, ls: -1 });
+    bars(x + 26, y + 294, [w * .45], { h: 11 });
+    cover(IMG.render, x, y + 340, w, 300, { oy: .4 });
+    bars(x + 26, y + 680, [w * .8, w * .72, w * .78, w * .5], { h: 11, gap: 14 });
+    // galeri 2 kolom
+    const gw = (w - 52 - 10) / 2;
+    cover(IMG.render, x + 26, y + 800, gw, gw * .8, { ox: .15, zoom: 1.6 });
+    cover(IMG.render, x + 36 + gw, y + 800, gw, gw * .8, { ox: .85, zoom: 1.6 });
+    // slider
+    cover(IMG.render, x, y + 1010, w, 260, { oy: .9, zoom: 1.3 });
+    ["←", "1 / 4", "→"].forEach((s, i) => text(s, x + w / 2 + (i - 1) * 80, y + 1310, { size: 18, color: C.muted, align: "center" }));
+    ctx.restore();
+  });
+  ctx.restore();
+  const feats = ["Galleries", "Sliders", "Before / After", "Video", "Text blocks"];
+  feats.forEach((f, i) => {
+    const q = easeOutBack(prog(lt, 2.2 + i * .45, 2.9 + i * .45));
+    pill(f, 660, 760 + i * 150 + (1 - q) * 30, { size: 32, alpha: clamp(q), solid: i === Math.floor(prog(lt, 2.2, 6.4) * 5) });
+  });
+}
+
+// 5. Before / After
+function s5(lt) {
+  kicker("03 — Before / After", lt);
+  headline(["Show the", "transformation."], lt);
+  const p = easeOut(prog(lt, .6, 1.4));
+  const bx = 60, by = 700 + (1 - p) * 100, bw = W - 120, bh = 900;
+  ctx.save(); ctx.globalAlpha *= p;
+  cover(IMG.render, bx, by, bw, bh, { oy: .45 });
+  const swing = lt < 1.4 ? .5 : .5 + .38 * Math.sin((lt - 1.4) * 1.25);
+  const pos = bx + bw * swing;
+  ctx.save(); ctx.beginPath(); ctx.rect(bx, by, pos - bx, bh); ctx.clip();
+  cover(IMG.renderGray, bx, by, bw, bh, { oy: .45 });
+  ctx.restore();
+  ctx.fillStyle = "#fff"; ctx.fillRect(pos - 2, by, 4, bh);
+  ctx.beginPath(); ctx.arc(pos, by + bh / 2, 44, 0, 7); ctx.fill();
+  text("↔", pos, by + bh / 2 + 2, { size: 40, color: "#000", align: "center", base: "middle" });
+  pill("Before", bx + 24, by + 24, { size: 26 });
+  const aw = measure("After", 26, 500) + 39;
+  pill("After", bx + bw - 24 - aw, by + 24, { size: 26 });
+  ctx.restore();
+  const q = easeOut(prog(lt, 2, 2.8));
+  text("Drag to compare. Works with a finger, too.", 90, 1700, { size: 34, color: C.muted, alpha: q });
+}
+
+// 6. Research + PDF
+function s6(lt) {
+  kicker("04 — Research", lt);
+  headline(["Papers you can", "read right here."], lt);
+  const p = easeOut(prog(lt, .6, 1.4));
+  const vx = 90, vy = 660 + (1 - p) * 100, vw = W - 180, vh = 900;
+  ctx.save(); ctx.globalAlpha *= p;
+  text("Paper · 14 pages", vx, vy + 30, { size: 30, color: C.soft });
+  const w2 = measure("Download PDF", 26, 500) + 39;
+  pill("Download PDF", vx + vw - w2, vy - 10, { size: 26, solid: true });
+  fillRR(vx, vy + 70, vw, vh, 6, C.tile);
+  ctx.save(); rr(vx, vy + 70, vw, vh, 6); ctx.clip();
+  const scroll = easeInOut(prog(lt, 1.8, 6.3)) * 1500;
+  for (let i = 0; i < 4; i++) {
+    const pgx = vx + 40, pgy = vy + 110 + i * 760 - scroll, pgw = vw - 80, pgh = 720;
+    fillRR(pgx, pgy, pgw, pgh, 2, "#f4f4f4");
+    if (i === 0) {
+      bars(pgx + pgw * .12, pgy + 80, [pgw * .76, pgw * .6], { h: 22, gap: 18, color: "#222" });
+      bars(pgx + pgw * .3, pgy + 190, [pgw * .4, pgw * .3], { h: 10, gap: 14, color: "#888" });
+    }
+    const cols = 2, colW = (pgw - 120) / cols;
+    for (let c = 0; c < cols; c++) {
+      const start = i === 0 ? 290 : 70;
+      const lines = Math.floor((pgh - start - 50) / 24);
+      for (let l = 0; l < lines; l++) {
+        const lw = colW * (l % 7 === 6 ? .55 : .92 + ((l * 13 + c * 7) % 5) * .015);
+        fillRR(pgx + 50 + c * (colW + 20), pgy + start + l * 24, Math.min(lw, colW), 8, 4, "#bdbdbd");
+      }
+    }
+  }
+  ctx.restore();
+  ctx.restore();
+  const q = easeOut(prog(lt, 2.2, 3));
+  text("Upload a PDF, visitors read it page by page.", 90, 1720, { size: 34, color: C.muted, alpha: q });
+}
+
+// 7. Admin
+function s7(lt) {
+  kicker("05 — Admin", lt);
+  headline(["Update everything", "yourself."], lt);
+  const p = easeOut(prog(lt, .6, 1.4));
+  const ax = 90, ay = 660 + (1 - p) * 100, aw = W - 180;
+  ctx.save(); ctx.globalAlpha *= p;
+  strokeRR(ax, ay, aw, 1000, 24, "#262626", 2);
+  ["Profile", "Portfolio", "CV"].forEach((t, i) => {
+    const on = i === 1;
+    text(t, ax + 40 + i * 190, ay + 70, { size: 30, color: on ? C.fg : C.dim });
+    if (on) { ctx.fillStyle = C.fg; ctx.fillRect(ax + 40 + i * 190, ay + 90, measure(t, 30), 3); }
+  });
+  ctx.fillStyle = C.line; ctx.fillRect(ax + 30, ay + 92, aw - 60, 1.5);
+  // kartu blok yang bertambah satu per satu
+  const blocks = ["1. Photo · full width", "2. Text", "3. Gallery · 3 columns", "4. Slider", "5. Before / After", "6. Video"];
+  blocks.forEach((b, i) => {
+    const q = easeOutBack(prog(lt, 1.3 + i * .45, 1.9 + i * .45));
+    if (q <= 0) return;
+    const by = ay + 130 + i * 112 + (1 - q) * 30;
+    ctx.save(); ctx.globalAlpha *= clamp(q);
+    strokeRR(ax + 30, by, aw - 60, 92, 14, "#2a2a2a", 2);
+    text(b, ax + 60, by + 56, { size: 28, color: C.soft });
+    ["↑", "↓", "✕"].forEach((s, k) => {
+      strokeRR(ax + aw - 230 + k * 60, by + 22, 48, 48, 10, "#333", 2);
+      text(s, ax + aw - 206 + k * 60, by + 47, { size: 24, color: C.muted, align: "center", base: "middle" });
+    });
+    ctx.restore();
+  });
+  // saklar maintenance
+  const on = lt > 5.2;
+  const sp = easeInOut(prog(lt, 5.2, 5.5));
+  const sy = ay + 840;
+  fillRR(ax + 30, sy, aw - 60, 120, 16, on ? "#151515" : "#0b0b0b");
+  strokeRR(ax + 30, sy, aw - 60, 120, 16, on ? C.fg : "#2a2a2a", 2);
+  fillRR(ax + 60, sy + 37, 88, 46, 23, on ? C.fg : "#2a2a2a");
+  ctx.fillStyle = on ? "#000" : "#888"; ctx.beginPath(); ctx.arc(ax + 83 + sp * 42, sy + 60, 17, 0, 7); ctx.fill();
+  text("Maintenance mode", ax + 175, sy + 54, { size: 30, weight: 500 });
+  text(on ? "ON: visitors see “Under maintenance”" : "Off: site is live", ax + 175, sy + 92, { size: 22, color: C.muted });
+  ctx.restore();
+}
+
+// 8. Di HP
+function s8(lt) {
+  kicker("06 — Everywhere", lt);
+  headline(["Made for", "every screen."], lt);
+  const p = easeOut(prog(lt, .6, 1.5));
+  const pw = 470, ph = 960;
+  [[90, 0], [W - 90 - pw, .25]].forEach(([px, d], idx) => {
+    const q = easeOut(prog(lt, .6 + d, 1.5 + d));
+    ctx.save(); ctx.globalAlpha *= q;
+    phone(px, 660 + (1 - q) * 140 + (idx ? 80 : 0), pw, ph, (x, y, w, h) => {
+      text("Mikhellon Kwa", x + 24, y + 92, { size: 19, weight: 600 });
+      [0, 1, 2].forEach(k => fillRR(x + w - 56, y + 76 + k * 9, 26, 3, 1.5, C.fg));
+      ctx.fillStyle = C.line; ctx.fillRect(x, y + 120, w, 1.5);
+      if (idx === 0) {
+        text("Design", x + 24, y + 200, { size: 34, weight: 600, ls: -1 });
+        text("all   residential   urban", x + 24, y + 250, { size: 17, color: C.dim });
+        cover(IMG.render, x + 24, y + 285, w - 48, (w - 48) * .78, { oy: .45 });
+        text("2027 | Nusantiri, Indonesia", x + 24, y + 285 + (w - 48) * .78 + 34, { size: 14, color: C.dim });
+        text("DESIGN PROJECT", x + 24, y + 285 + (w - 48) * .78 + 62, { size: 20, weight: 700 });
+        fillRR(x + 24, y + 680, w - 48, 200, 0, C.tile);
+      } else {
+        // menu sidebar terbuka
+        const op = easeOut(prog(lt, 2.4, 3));
+        fillRR(x, y, w, h, 0, "#000", .6 * op);
+        fillRR(x - (1 - op) * w * .8, y, w * .8, h, 0, C.side);
+        ctx.save(); ctx.globalAlpha *= op;
+        text("Mikhellon Kwa", x + 24 - (1 - op) * w * .8, y + 92, { size: 19, weight: 600 });
+        ["LinkedIn", "Email", "GitHub", "Instagram", "", "Design", "Research", "About", "Experience", "Contact"].forEach((l, k) => {
+          if (!l) return;
+          text(l, x + 60 - (1 - op) * w * .8, y + 170 + k * 52, { size: 20, color: k < 4 ? C.soft : C.muted });
+          strokeRR(x + 24 - (1 - op) * w * .8, y + 154 + k * 52, 20, 20, 4, C.muted, 1.5);
+        });
+        ctx.restore();
+      }
+    });
+    ctx.restore();
+  });
+}
+
+// 9. Penutup
+function s9(lt) {
+  const a = easeOut(prog(lt, .1, .9));
+  text("Now live.", W / 2, 820 + (1 - a) * 40, { size: 170, weight: 600, align: "center", alpha: a, ls: -6 });
+  const b = easeOutBack(prog(lt, .9, 1.7));
+  ctx.save(); ctx.globalAlpha *= clamp(b);
+  const url = "mikhellonkwa.site", fs = 58, tw = measure(url, fs, 500);
+  fillRR(W / 2 - tw / 2 - 60, 960, tw + 120, 124, 62, C.fg);
+  text(url, W / 2, 1024, { size: fs, color: "#000", align: "center", base: "middle" });
+  ctx.restore();
+  const c = easeOut(prog(lt, 1.8, 2.6));
+  text("Design · Research · CV", W / 2, 1210, { size: 38, color: C.muted, align: "center", alpha: c });
+  const d = easeOut(prog(lt, 3, 3.8));
+  text("Hire me pls :)", W / 2, 1420, { size: 54, weight: 500, align: "center", alpha: d });
+  // logo kecil
+  const e = easeOut(prog(lt, .5, 1.3));
+  fillRR(W / 2 - 50, 470, 100, 100, 22, C.fg, e);
+  text("M", W / 2, 524, { size: 62, weight: 700, color: "#000", align: "center", base: "middle", alpha: e });
+}
+
+const SCENES = [
+  [0, 5.5, s1], [5.5, 10.5, s2], [10.5, 18.5, s3], [18.5, 25.5, s4], [25.5, 32.5, s5],
+  [32.5, 39.5, s6], [39.5, 46.5, s7], [46.5, 52.5, s8], [52.5, 60, s9],
+];
+
+function draw(t) {
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  // Semua isi diperkecil & digeser ke "area aman" Instagram Reels/Story
+  // (atas ±250px dan bawah ±390px tertutup nama akun, caption & tombol).
+  ctx.save();
+  ctx.translate((W - W * SAFE) / 2, 250 - 150 * SAFE);
+  ctx.scale(SAFE, SAFE);
+  for (const [a, b, fn] of SCENES) scene(t, a, b, fn);
+  ctx.restore();
+  // fade hitam di akhir
+  const end = prog(t, DURATION - .7, DURATION);
+  if (end > 0) { ctx.fillStyle = `rgba(0,0,0,${end})`; ctx.fillRect(0, 0, W, H); }
+}
+
+// ---------- setup ----------
+const log = m => { document.getElementById("log").textContent += m + "\n"; };
+async function loadImg(src) {
+  const im = new Image(); im.src = src; await im.decode(); return im;
+}
+await Promise.all([400, 500, 600, 700].map(w => document.fonts.load(`${w} 40px "Space Grotesk"`)));
+// Perkecil foto sekali saja (foto asli 10 MB terlalu berat digambar tiap frame),
+// dan siapkan versi hitam-putih untuk efek "before".
+function bake(img, maxW, filter = "none") {
+  const s = Math.min(1, maxW / img.width);
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+  const g = c.getContext("2d"); g.filter = filter; g.drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+const raw = await loadImg("assets/render.jpg");
+IMG.render = bake(raw, 1800);
+IMG.renderGray = bake(raw, 1800, "grayscale(1) brightness(.55) contrast(1.1)");
+log(`fonts & image ready (${raw.width}×${raw.height} → ${IMG.render.width}×${IMG.render.height})`);
+
+const scrub = document.getElementById("scrub"), tl = document.getElementById("tlabel");
+const show = t => { draw(t); tl.textContent = t.toFixed(2) + "s"; };
+scrub.oninput = () => show(+scrub.value);
+show(0);
+let playing = false;
+document.getElementById("play").onclick = () => {
+  if (playing) { playing = false; return; }
+  playing = true; const t0 = performance.now() - scrub.value * 1000;
+  const tick = now => {
+    if (!playing) return;
+    const t = (now - t0) / 1000; if (t > DURATION) { playing = false; return; }
+    scrub.value = t; show(t); requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+};
+window.__draw = show;
+
+// ---------- render MP4 (WebCodecs + mp4-muxer) ----------
+async function renderMp4() {
+  const { Muxer, ArrayBufferTarget } = await import("https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/+esm");
+  const muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: "avc", width: W, height: H, frameRate: FPS }, fastStart: "in-memory" });
+  let err = null;
+  const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { err = e; } });
+  const config = { codec: "avc1.640033", width: W, height: H, bitrate: 12_000_000, framerate: FPS, avc: { format: "avc" } };
+  const sup = await VideoEncoder.isConfigSupported(config);
+  if (!sup.supported) throw new Error("H.264 encoder not supported");
+  enc.configure(config);
+  const total = DURATION * FPS;
+  const t0 = performance.now();
+  for (let i = 0; i < total; i++) {
+    if (err) throw err;
+    draw(i / FPS);
+    const frame = new VideoFrame(cv, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+    enc.encode(frame, { keyFrame: i % (FPS * 2) === 0 });
+    frame.close();
+    while (enc.encodeQueueSize > 6) await new Promise(r => setTimeout(r, 2));
+    if (i % 150 === 0) { log(`frame ${i}/${total}`); await new Promise(r => setTimeout(r, 0)); }
+  }
+  await enc.flush();
+  muxer.finalize();
+  const buf = muxer.target.buffer;
+  log(`encoded ${(buf.byteLength / 1e6).toFixed(1)} MB in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
+  const res = await fetch("/save?name=mikhellonkwa-launch.mp4", { method: "POST", body: buf });
+  log(await res.text());
+  window.__done = true;
+  return buf.byteLength;
+}
+document.getElementById("render").onclick = () => renderMp4().catch(e => { log("ERROR " + e.message); window.__error = e.message; });
+window.__render = renderMp4;
+</script>
+</body>
+</html>

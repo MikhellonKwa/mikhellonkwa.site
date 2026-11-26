@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -53,7 +53,9 @@
     .preview img { max-width: 240px; border: 1px solid var(--line); border-radius: 6px; margin-top: 4px; }
     .preview a { font-size: .85rem; }
 
-    .list-head { margin-bottom: 8px; }
+    .list-head { margin-bottom: 8px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .period-grid { display: grid; grid-template-columns: 56px 1fr 1fr; gap: 8px 10px; align-items: center; }
+    .period-grid select:disabled { opacity: .4; }
     .form-box { border: 1px solid var(--line); border-radius: 8px; padding: 22px; margin: 16px 0 24px; }
     .form-box h3 { font-size: 1rem; font-weight: 500; margin-bottom: 16px; }
     .row-actions { display: flex; gap: 8px; flex-shrink: 0; }
@@ -113,7 +115,7 @@
 </head>
 <body>
   <main class="wrap" id="admin">
-    <p class="sub">Memuat…</p>
+    <p class="sub">Loading…</p>
   </main>
   <script type="module" src="admin.js"></script>
 </body>

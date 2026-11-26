@@ -1,50 +1,56 @@
-import { getClient, isConfigured, CV_TYPES, BUCKET, h, slugify, projectUrl } from "../db.js";
+import { getClient, isConfigured, CV_TYPES, BUCKET, h, slugify, projectUrl, MONTHS, fmtPeriod, sortProjects, sortCv } from "../db.js";
 
 const root = document.getElementById("admin");
 const sb = await getClient();
 
-// ---------- Definisi form ----------
-const FIELDS = {
-  profile: [
-    { k: "name", label: "Nama", req: true },
-    { k: "email", label: "Email publik", type: "email" },
-    { k: "bio", label: "Bio", type: "textarea", rows: 6, hint: "Pisahkan paragraf dengan satu baris kosong." },
-    { k: "skills", label: "Skill", type: "tags", hint: "Pisahkan dengan koma." },
-    { k: "links", label: "Link", type: "links", hint: "Satu per baris → Label | URL   (mis. GitHub | https://github.com/username)" },
-    { k: "cv_url", label: "File CV (PDF)", type: "file", accept: "application/pdf", folder: "cv", hint: "Muncul sebagai tombol “Download CV”." },
-  ],
-  projects: [
-    { k: "title", label: "Judul", req: true },
-    { k: "kind", label: "Masuk ke bagian", type: "select", options: [["work", "Design"], ["research", "Research"]] },
-    { k: "pdf_url", label: "File paper (PDF)", type: "file", accept: "application/pdf", folder: "papers", when: { k: "kind", eq: "research" }, hint: "Khusus research. Pengunjung bisa membaca preview-nya langsung di halaman project dan mendownload PDF-nya. Maks 50 MB." },
-    { k: "slug", label: "Alamat halaman", type: "slug", hint: "Kosongkan untuk dibuat otomatis dari judul. Hanya huruf kecil, angka, dan tanda -." },
-    { k: "subtitle", label: "Subjudul singkat", hint: "Muncul di bawah judul kartu, mis. Aplikasi kasir untuk UMKM." },
-    { k: "year", label: "Tahun" },
-    { k: "location", label: "Lokasi project", hint: "Format: Kota, Negara (mis. Jakarta, Indonesia). Tampil sebagai “2027 | Jakarta, Indonesia”." },
-    { k: "description", label: "Deskripsi", type: "textarea", rows: 6, hint: "Teks pembuka di halaman project. Pisahkan paragraf dengan baris kosong." },
-    { k: "url", label: "Link project", type: "url", hint: "Opsional. Muncul sebagai “Buka project ↗” di halaman detail." },
-    { k: "tags", label: "Kategori / tag", type: "tags", hint: "Pisahkan dengan koma. Dipakai juga sebagai filter di halaman utama (mis. hunian, interior)." },
-    { k: "image_url", label: "Foto cover (thumbnail kartu)", type: "file", accept: "image/*", folder: "projects", hint: "Tampil di kartu halaman utama. Di halaman project, cover hanya muncul kalau belum ada blok konten." },
-    { k: "sort", label: "Urutan", type: "number", hint: "Angka kecil tampil di atas." },
-    { k: "blocks", label: "Konten halaman project", type: "blocks" },
-  ],
-  cv_items: [
-    { k: "type", label: "Bagian", type: "select", options: CV_TYPES },
-    { k: "title", label: "Posisi / jurusan / nama sertifikat", req: true },
-    { k: "org", label: "Perusahaan / instansi" },
-    { k: "period", label: "Periode", hint: "Mis. 2024 — Sekarang" },
-    { k: "description", label: "Deskripsi", type: "textarea" },
-    { k: "sort", label: "Urutan", type: "number", hint: "Angka kecil tampil di atas." },
-  ],
+// ---------- Form fields ----------
+const YEARS = Array.from({ length: 2050 - 1980 + 1 }, (_, i) => String(2050 - i)); // 2050 → 1980
+
+const PROFILE_FIELDS = [
+  { k: "name", label: "Name", req: true },
+  { k: "email", label: "Public email", type: "email" },
+  { k: "bio", label: "About (bio)", type: "textarea", rows: 6, hint: "Separate paragraphs with an empty line." },
+  { k: "skills", label: "Skills", type: "tags", hint: "Separate with commas." },
+  { k: "links", label: "Links", type: "links", hint: "One per line → Label | URL   (e.g. GitHub | https://github.com/username)" },
+  { k: "cv_url", label: "CV file (PDF)", type: "file", accept: "application/pdf", folder: "cv", hint: "Shown as the “CV” link in the sidebar." },
+];
+
+const projectFields = research => [
+  { k: "title", label: "Title", req: true },
+  { k: "slug", label: "Page address", type: "slug", hint: "Leave empty to generate it from the title. Lowercase letters, numbers and - only." },
+  { k: "subtitle", label: "Short subtitle", hint: "Shown under the title on the card." },
+  { k: "year", label: "Year", type: "year", hint: "Projects are sorted automatically, newest year first." },
+  { k: "location", label: "Location", hint: "City, Country (e.g. Jakarta, Indonesia). Shown as “2027 | Jakarta, Indonesia”." },
+  research ? { k: "pdf_url", label: "Paper (PDF)", type: "file", accept: "application/pdf", folder: "papers", hint: "Visitors can read a preview on the project page and download the PDF. Max 50 MB." } : null,
+  { k: "description", label: "Description", type: "textarea", rows: 6, hint: "Intro text on the project page. Separate paragraphs with an empty line." },
+  { k: "url", label: "Project link", type: "url", hint: "Optional. Shown as “Open project ↗” on the project page." },
+  { k: "tags", label: "Categories / tags", type: "tags", hint: "Separate with commas. Also used as filters on the home page (e.g. residential, interior)." },
+  { k: "image_url", label: "Cover image (card thumbnail)", type: "file", accept: "image/*", folder: "projects", hint: "Shown on the home page card. On the project page, the cover only appears when there are no content blocks." },
+  { k: "blocks", label: "Project page content", type: "blocks" },
+].filter(Boolean);
+
+const CV_FIELDS = [
+  { k: "type", label: "Section", type: "select", options: CV_TYPES },
+  { k: "title", label: "Company / Institution", req: true, hint: "e.g. ALIEN Design Consultant, Universitas Indonesia, IAI" },
+  { k: "org", label: "Position / Major / Title", hint: "e.g. Junior Architect, Bachelor of Architecture" },
+  { k: "period", label: "Period", type: "period" },
+  { k: "description", label: "Description", type: "textarea" },
+];
+
+// Tabs in the admin and what each one manages.
+const LISTS = {
+  design: { table: "projects", kind: "work", fields: projectFields(false), noun: "design project", sort: sortProjects },
+  research: { table: "projects", kind: "research", fields: projectFields(true), noun: "research", sort: sortProjects },
+  cv: { table: "cv_items", fields: CV_FIELDS, noun: "entry", sort: sortCv },
 };
 
 const SUMMARY = {
-  projects: r => [r.kind === "research" ? "Research" : "Design", r.pdf_url ? "PDF" : null, r.year, (r.tags || []).join(", "), r.slug ? "/project/" + r.slug : null,
-    Array.isArray(r.blocks) && r.blocks.length ? `${r.blocks.length} blok konten` : null],
-  cv_items: r => [CV_TYPES.find(([k]) => k === r.type)?.[1], r.org, r.period],
+  projects: r => [r.year, r.location, r.pdf_url ? "PDF" : null, (r.tags || []).join(", "), r.slug ? "/project/" + r.slug : null,
+    Array.isArray(r.blocks) && r.blocks.length ? `${r.blocks.length} content block${r.blocks.length > 1 ? "s" : ""}` : null],
+  cv_items: r => [CV_TYPES.find(([k]) => k === r.type)?.[1], r.org, fmtPeriod(r.start_ym, r.end_ym) || r.period],
 };
 
-// ---------- Helper ----------
+// ---------- Helpers ----------
 async function upload(file, folder) {
   const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
   const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -55,15 +61,15 @@ async function upload(file, folder) {
 
 function errBox(error) {
   const msg = error.message || String(error);
-  const hint = /relation|does not exist|schema cache/i.test(msg)
-    ? " Sepertinya supabase-setup.sql belum dijalankan."
+  const hint = /relation|does not exist|schema cache|column/i.test(msg)
+    ? " The database may be missing a column — run supabase-setup.sql again."
     : "";
   return h("div", { class: "notice" }, "Error: " + msg + hint);
 }
 
-// Supabase tidak error kalau RLS menolak update/delete, hanya 0 baris berubah.
+// Supabase doesn't error when row-level security blocks an update/delete; it just changes 0 rows.
 function mustChange(data) {
-  if (!data || !data.length) throw new Error("Tidak diizinkan. Pastikan email login sama dengan email admin di supabase-setup.sql.");
+  if (!data || !data.length) throw new Error("Not allowed. Make sure you are signed in with the admin email.");
 }
 
 function parse(f, raw) {
@@ -78,13 +84,59 @@ function parse(f, raw) {
   return raw.trim();
 }
 
-function field(f, v) {
+const option = (value, label) => h("option", { value }, label);
+
+// Month + year dropdowns. "present" and "" (no end date) are allowed for the end.
+function periodField(f, row) {
+  const monthSel = () => h("select", { "aria-label": "Month" }, option("", "Month"), MONTHS.map((m, i) => option(String(i + 1).padStart(2, "0"), m)));
+  const sm = monthSel(), em = monthSel();
+  const sy = h("select", { "aria-label": "Start year" }, option("", "Year"), YEARS.map(y => option(y, y)));
+  const ey = h("select", { "aria-label": "End year" },
+    option("present", "Present"), option("none", "No end date"), YEARS.map(y => option(y, y)));
+
+  const [s1, s2] = (row.start_ym || "").split("-");
+  sy.value = s1 || ""; sm.value = s2 || "";
+  if (row.end_ym === "present" || (!row.end_ym && !row.start_ym)) ey.value = "present";
+  else if (!row.end_ym) ey.value = "none";
+  else { const [e1, e2] = row.end_ym.split("-"); ey.value = e1; em.value = e2 || ""; }
+
+  const preview = h("small", { class: "slug-preview" });
+  const value = () => {
+    const start_ym = sy.value ? `${sy.value}-${sm.value || "01"}` : "";
+    const end_ym = ey.value === "present" ? "present" : ey.value === "none" ? "" : `${ey.value}-${em.value || "01"}`;
+    return { start_ym, end_ym, period: fmtPeriod(start_ym, end_ym) };
+  };
+  const sync = () => {
+    em.disabled = ey.value === "present" || ey.value === "none";
+    preview.textContent = value().period ? "Shown as: " + value().period : "";
+  };
+  [sm, sy, em, ey].forEach(s => s.addEventListener("change", sync));
+  sync();
+
+  return {
+    node: h("div", { class: "field" }, h("span", {}, f.label),
+      h("div", { class: "period-grid" },
+        h("span", { class: "sub" }, "Start"), sm, sy,
+        h("span", { class: "sub" }, "End"), em, ey),
+      preview),
+    get: () => {
+      const v = value();
+      if (!v.start_ym) throw new Error("Choose a start month and year.");
+      if (v.end_ym && v.end_ym !== "present" && v.end_ym < v.start_ym) throw new Error("The end date is before the start date.");
+      return v;
+    },
+    multi: true,
+  };
+}
+
+function field(f, v, row) {
   if (f.type === "blocks") return blockEditor(f, v);
+  if (f.type === "period") return periodField(f, row);
   let input;
   const extra = [];
 
   if (f.type === "slug") {
-    input = h("input", { type: "text", placeholder: "otomatis dari judul", spellcheck: "false" });
+    input = h("input", { type: "text", placeholder: "generated from the title", spellcheck: "false" });
     input.value = v ?? "";
     const show = h("small", { class: "slug-preview" });
     const upd = () => { show.textContent = "mikhellonkwa.site/project/" + (slugify(input.value) || "…"); };
@@ -100,19 +152,19 @@ function field(f, v) {
     input = h("textarea", { rows: f.rows || 4 });
     input.value = v ?? "";
   } else if (f.type === "select") {
-    input = h("select", {}, f.options.map(([val, label]) => h("option", { value: val }, label)));
+    input = h("select", {}, f.options.map(([val, label]) => option(val, label)));
     input.value = v ?? f.options[0][0];
+  } else if (f.type === "year") {
+    input = h("select", {}, option("", "—"), YEARS.map(y => option(y, y)));
+    input.value = YEARS.includes(String(v)) ? String(v) : "";
   } else if (f.type === "tags") {
     input = h("input", { type: "text" });
     input.value = (v || []).join(", ");
   } else if (f.type === "links") {
     input = h("textarea", { rows: 4, placeholder: "GitHub | https://github.com/username" });
     input.value = (v || []).map(l => `${l.label} | ${l.url}`).join("\n");
-  } else if (f.type === "number") {
-    input = h("input", { type: "number", step: 1 });
-    input.value = v ?? 0;
   } else if (f.type === "file") {
-    input = h("input", { type: "url", placeholder: "Upload file di bawah, atau tempel URL" });
+    input = h("input", { type: "url", placeholder: "Upload a file below, or paste a URL" });
     input.value = v ?? "";
     const preview = h("div", { class: "preview" });
     const status = h("span", { class: "status" });
@@ -121,21 +173,21 @@ function field(f, v) {
       preview.replaceChildren(
         !u ? "" : f.accept.startsWith("image")
           ? h("img", { src: u, alt: "" })
-          : h("a", { href: u, target: "_blank", rel: "noopener" }, "Lihat file ↗"));
+          : h("a", { href: u, target: "_blank", rel: "noopener" }, "View file ↗"));
     };
     const fileIn = h("input", {
       type: "file", accept: f.accept,
       onchange: async () => {
         const file = fileIn.files[0];
         if (!file) return;
-        if (file.size > 50 * 1024 * 1024) { status.textContent = "File lebih dari 50 MB. Kecilkan dulu ukurannya."; fileIn.value = ""; return; }
-        status.textContent = "Mengupload…";
+        if (file.size > 50 * 1024 * 1024) { status.textContent = "File is larger than 50 MB. Please make it smaller."; fileIn.value = ""; return; }
+        status.textContent = "Uploading…";
         try {
           input.value = await upload(file, f.folder);
-          status.textContent = "Terupload ✓ (jangan lupa klik Simpan)";
+          status.textContent = "Uploaded ✓ (remember to click Save)";
           showPreview();
         } catch (e) {
-          status.textContent = "Gagal upload: " + e.message;
+          status.textContent = "Upload failed: " + e.message;
         }
       },
     });
@@ -155,22 +207,22 @@ function field(f, v) {
   };
 }
 
-// ---------- Editor blok konten (halaman project) ----------
+// ---------- Content block editor (project page) ----------
 const BLOCK_TYPES = {
-  text: { label: "Teks", make: () => ({ type: "text", text: "", size: "small" }) },
-  image: { label: "Foto", make: () => ({ type: "image", url: "", caption: "", size: "normal" }) },
-  gallery: { label: "Galeri", make: () => ({ type: "gallery", images: [], columns: 2, size: "normal" }) },
+  text: { label: "Text", make: () => ({ type: "text", text: "", size: "small" }) },
+  image: { label: "Image", make: () => ({ type: "image", url: "", caption: "", size: "normal" }) },
+  gallery: { label: "Gallery", make: () => ({ type: "gallery", images: [], columns: 2, size: "normal" }) },
   slider: { label: "Slider", make: () => ({ type: "slider", images: [], size: "normal" }) },
   beforeafter: { label: "Before / After", make: () => ({ type: "beforeafter", before: "", after: "", beforeLabel: "Before", afterLabel: "After", caption: "", size: "normal" }) },
   video: { label: "Video", make: () => ({ type: "video", url: "", caption: "", autoplay: false, size: "normal" }) },
 };
-const SIZES = [["small", "Lebar: kecil"], ["normal", "Lebar: sedang"], ["full", "Lebar: penuh"]];
+const SIZES = [["small", "Width: small"], ["normal", "Width: medium"], ["full", "Width: full"]];
 const clone = v => JSON.parse(JSON.stringify(v ?? null));
 
 const iconBtn = (text, label, onclick, disabled) =>
   h("button", { type: "button", class: "btn ghost sm icon", "aria-label": label, title: label, onclick, disabled: !!disabled }, text);
 
-// Kolom berlabel (div, karena bisa berisi lebih dari satu input).
+// Labelled group (a div, since it can hold more than one input).
 const group = (label, ...kids) => h("div", { class: "field" }, h("span", {}, label), kids);
 
 function bindText(obj, key, { area = false, rows = 4, placeholder = "", label = "" } = {}) {
@@ -180,9 +232,9 @@ function bindText(obj, key, { area = false, rows = 4, placeholder = "", label = 
   return el;
 }
 
-// Satu file (foto / video): upload atau tempel URL.
-function mediaInput(obj, key, { accept = "image/*", label = "Foto", hint = "" } = {}) {
-  const url = h("input", { type: "url", placeholder: "Upload file, atau tempel URL", "aria-label": label });
+// One file (image / video): upload or paste a URL.
+function mediaInput(obj, key, { accept = "image/*", label = "Image", hint = "" } = {}) {
+  const url = h("input", { type: "url", placeholder: "Upload a file, or paste a URL", "aria-label": label });
   url.value = obj[key] || "";
   const preview = h("div", { class: "preview" });
   const status = h("span", { class: "status" });
@@ -192,20 +244,20 @@ function mediaInput(obj, key, { accept = "image/*", label = "Foto", hint = "" } 
     const isEmbed = /youtu\.?be|vimeo\.com/.test(u);
     preview.replaceChildren(!u ? "" : accept.startsWith("image") ? h("img", { src: u, alt: "" })
       : !isEmbed ? h("video", { src: u, controls: true, preload: "metadata" })
-      : h("a", { href: u, target: "_blank", rel: "noopener" }, "Lihat video ↗"));
+      : h("a", { href: u, target: "_blank", rel: "noopener" }, "View video ↗"));
   };
   const file = h("input", {
-    type: "file", accept, "aria-label": "Pilih file " + label,
+    type: "file", accept, "aria-label": "Choose file: " + label,
     onchange: async () => {
       const f = file.files[0];
       if (!f) return;
-      if (f.size > 50 * 1024 * 1024) { status.textContent = "File lebih dari 50 MB. Kecilkan dulu, atau upload ke YouTube lalu tempel link-nya."; file.value = ""; return; }
-      status.textContent = "Mengupload…";
+      if (f.size > 50 * 1024 * 1024) { status.textContent = "File is larger than 50 MB. Make it smaller, or upload to YouTube and paste the link."; file.value = ""; return; }
+      status.textContent = "Uploading…";
       try {
         url.value = await upload(f, accept.startsWith("video") ? "videos" : "projects");
-        status.textContent = "Terupload ✓";
+        status.textContent = "Uploaded ✓";
         show();
-      } catch (e) { status.textContent = "Gagal upload: " + e.message; }
+      } catch (e) { status.textContent = "Upload failed: " + e.message; }
       file.value = "";
     },
   });
@@ -214,74 +266,74 @@ function mediaInput(obj, key, { accept = "image/*", label = "Foto", hint = "" } 
   return group(label, url, file, status, preview, hint ? h("small", {}, hint) : null);
 }
 
-// Banyak foto (galeri / slider): upload sekaligus, atur urutan, kasih keterangan.
+// Several images (gallery / slider): bulk upload, reorder, captions.
 function imagesInput(obj) {
   obj.images = Array.isArray(obj.images) ? obj.images : [];
   const list = h("div", { class: "img-list" });
   const status = h("span", { class: "status" });
   const swap = (i, j) => { [obj.images[i], obj.images[j]] = [obj.images[j], obj.images[i]]; draw(); };
   const draw = () => list.replaceChildren(...obj.images.map((im, i) => {
-    const cap = h("input", { type: "text", placeholder: "Keterangan (opsional)", "aria-label": `Keterangan foto ${i + 1}` });
+    const cap = h("input", { type: "text", placeholder: "Caption (optional)", "aria-label": `Caption for image ${i + 1}` });
     cap.value = im.caption || "";
     cap.addEventListener("input", () => { im.caption = cap.value; });
     return h("div", { class: "img-item" },
-      h("img", { src: im.url, alt: `Foto ${i + 1}` }),
+      h("img", { src: im.url, alt: `Image ${i + 1}` }),
       cap,
       h("div", { class: "img-tools" },
-        iconBtn("←", "Geser ke kiri", () => swap(i, i - 1), i === 0),
-        iconBtn("→", "Geser ke kanan", () => swap(i, i + 1), i === obj.images.length - 1),
-        iconBtn("✕", "Hapus foto ini", () => { obj.images.splice(i, 1); draw(); })));
+        iconBtn("←", "Move left", () => swap(i, i - 1), i === 0),
+        iconBtn("→", "Move right", () => swap(i, i + 1), i === obj.images.length - 1),
+        iconBtn("✕", "Remove image", () => { obj.images.splice(i, 1); draw(); })));
   }));
   const file = h("input", {
-    type: "file", accept: "image/*", multiple: true, "aria-label": "Pilih foto (bisa banyak)",
+    type: "file", accept: "image/*", multiple: true, "aria-label": "Choose images (multiple allowed)",
     onchange: async () => {
       const files = [...file.files];
       for (const [n, f] of files.entries()) {
-        status.textContent = `Mengupload ${n + 1} dari ${files.length}…`;
+        status.textContent = `Uploading ${n + 1} of ${files.length}…`;
         try { obj.images.push({ url: await upload(f, "projects"), caption: "" }); draw(); }
-        catch (e) { status.textContent = "Gagal upload: " + e.message; file.value = ""; return; }
+        catch (e) { status.textContent = "Upload failed: " + e.message; file.value = ""; return; }
       }
-      status.textContent = `${files.length} foto terupload ✓`;
+      status.textContent = `${files.length} image${files.length > 1 ? "s" : ""} uploaded ✓`;
       file.value = "";
     },
   });
   draw();
-  return group("Foto (bisa pilih banyak sekaligus)", file, status, list);
+  return group("Images (you can select several at once)", file, status, list);
 }
 
 function blockBody(b) {
   switch (b.type) {
     case "text":
-      return group("Teks", bindText(b, "text", { area: true, rows: 6, label: "Teks", placeholder: "Pisahkan paragraf dengan baris kosong" }));
+      return group("Text", bindText(b, "text", { area: true, rows: 6, label: "Text", placeholder: "Separate paragraphs with an empty line" }));
     case "image":
-      return h("div", { class: "blk-body" }, mediaInput(b, "url", { label: "Foto" }), group("Keterangan", bindText(b, "caption", { label: "Keterangan" })));
+      return h("div", { class: "blk-body" }, mediaInput(b, "url", { label: "Image" }), group("Caption", bindText(b, "caption", { label: "Caption" })));
     case "gallery": {
-      const cols = h("select", { "aria-label": "Jumlah kolom" }, [1, 2, 3].map(n => h("option", { value: String(n) }, `${n} kolom`)));
+      const cols = h("select", { "aria-label": "Columns" }, [1, 2, 3].map(n => option(String(n), `${n} column${n > 1 ? "s" : ""}`)));
       cols.value = String(b.columns || 2);
       cols.addEventListener("change", () => { b.columns = +cols.value; });
-      return h("div", { class: "blk-body" }, group("Susunan", cols), imagesInput(b));
+      return h("div", { class: "blk-body" }, group("Layout", cols), imagesInput(b));
     }
     case "slider":
-      return h("div", { class: "blk-body" }, imagesInput(b), h("small", { class: "sub" }, "Pengunjung bisa geser foto, atau pakai tombol ← →."));
+      return h("div", { class: "blk-body" }, imagesInput(b), h("small", { class: "sub" }, "Visitors can swipe, or use the ← → buttons."));
     case "beforeafter":
       return h("div", { class: "blk-body two" },
-        mediaInput(b, "before", { label: "Foto sebelum (kiri)" }),
-        mediaInput(b, "after", { label: "Foto sesudah (kanan)" }),
-        group("Label kiri", bindText(b, "beforeLabel", { label: "Label kiri" })),
-        group("Label kanan", bindText(b, "afterLabel", { label: "Label kanan" })),
-        h("div", { class: "span-2" }, group("Keterangan", bindText(b, "caption", { label: "Keterangan" }))),
-        h("small", { class: "sub span-2" }, "Pakai dua foto dengan ukuran & sudut pandang yang sama supaya hasil geser-nya pas."));
+        mediaInput(b, "before", { label: "Before image (left)" }),
+        mediaInput(b, "after", { label: "After image (right)" }),
+        group("Left label", bindText(b, "beforeLabel", { label: "Left label" })),
+        group("Right label", bindText(b, "afterLabel", { label: "Right label" })),
+        h("div", { class: "span-2" }, group("Caption", bindText(b, "caption", { label: "Caption" }))),
+        h("small", { class: "sub span-2" }, "Use two images with the same size and angle so the comparison lines up."));
     case "video": {
       const ap = h("input", { type: "checkbox" });
       ap.checked = !!b.autoplay;
       ap.addEventListener("change", () => { b.autoplay = ap.checked; });
       return h("div", { class: "blk-body" },
-        mediaInput(b, "url", { accept: "video/*", label: "Video", hint: "Upload MP4 (maks 50 MB), atau tempel link YouTube / Vimeo." }),
-        group("Keterangan", bindText(b, "caption", { label: "Keterangan" })),
-        h("label", { class: "check" }, ap, "Putar otomatis tanpa suara & berulang (khusus file video, bukan YouTube)"));
+        mediaInput(b, "url", { accept: "video/*", label: "Video", hint: "Upload an MP4 (max 50 MB), or paste a YouTube / Vimeo link." }),
+        group("Caption", bindText(b, "caption", { label: "Caption" })),
+        h("label", { class: "check" }, ap, "Autoplay muted & loop (video files only, not YouTube)"));
     }
   }
-  return h("p", { class: "sub" }, "Jenis blok tidak dikenal.");
+  return h("p", { class: "sub" }, "Unknown block type.");
 }
 
 function blockEditor(f, value) {
@@ -289,10 +341,10 @@ function blockEditor(f, value) {
   const list = h("div", { class: "blk-list" });
 
   const move = (i, d) => { const j = i + d; [blocks[i], blocks[j]] = [blocks[j], blocks[i]]; draw(); };
-  const remove = i => { if (confirm("Hapus blok ini?")) { blocks.splice(i, 1); draw(); } };
+  const remove = i => { if (confirm("Delete this block?")) { blocks.splice(i, 1); draw(); } };
 
   function card(b, i) {
-    const size = h("select", { "aria-label": "Lebar blok" }, SIZES.map(([v, l]) => h("option", { value: v }, l)));
+    const size = h("select", { "aria-label": "Block width" }, SIZES.map(([v, l]) => option(v, l)));
     size.value = b.size || "normal";
     size.addEventListener("change", () => { b.size = size.value; });
     return h("div", { class: "blk-card" },
@@ -300,18 +352,18 @@ function blockEditor(f, value) {
         h("strong", {}, `${i + 1}. ${BLOCK_TYPES[b.type]?.label || b.type}`),
         h("span", { class: "blk-tools" },
           size,
-          iconBtn("↑", "Pindah ke atas", () => move(i, -1), i === 0),
-          iconBtn("↓", "Pindah ke bawah", () => move(i, 1), i === blocks.length - 1),
-          iconBtn("✕", "Hapus blok", () => remove(i)))),
+          iconBtn("↑", "Move up", () => move(i, -1), i === 0),
+          iconBtn("↓", "Move down", () => move(i, 1), i === blocks.length - 1),
+          iconBtn("✕", "Delete block", () => remove(i)))),
       blockBody(b));
   }
 
   const draw = () => list.replaceChildren(...(blocks.length
     ? blocks.map(card)
-    : [h("p", { class: "sub blk-empty" }, "Belum ada konten. Tambahkan blok di bawah: foto, galeri, slider, before/after, video, atau teks.")]));
+    : [h("p", { class: "sub blk-empty" }, "No content yet. Add blocks below: image, gallery, slider, before/after, video or text.")]));
 
   const adders = h("div", { class: "blk-add" },
-    h("span", { class: "sub" }, "+ Tambah:"),
+    h("span", { class: "sub" }, "+ Add:"),
     Object.entries(BLOCK_TYPES).map(([, d]) => h("button", {
       type: "button", class: "btn ghost sm",
       onclick: () => { blocks.push(d.make()); draw(); list.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "center" }); },
@@ -321,23 +373,14 @@ function blockEditor(f, value) {
   return {
     node: h("div", { class: "field blk-editor" },
       h("span", {}, f.label),
-      h("small", {}, "Susun isi halaman project sesukamu. Atur urutan dengan ↑ ↓ dan lebar tiap blok. Klik Simpan setelah selesai."),
+      h("small", {}, "Build the project page however you like. Reorder with ↑ ↓ and set each block's width. Click Save when you're done."),
       list, adders),
     get: () => clone(blocks),
   };
 }
 
-function buildForm(fields, values, onSave, submitLabel = "Simpan", onCancel) {
-  const parts = fields.map(f => field(f, values[f.k]));
-  // Kolom yang hanya muncul untuk pilihan tertentu (mis. PDF khusus research).
-  fields.forEach((f, i) => {
-    if (!f.when) return;
-    const ctl = parts[fields.findIndex(x => x.k === f.when.k)]?.input;
-    if (!ctl) return;
-    const sync = () => { parts[i].node.hidden = ctl.value !== f.when.eq; };
-    ctl.addEventListener("change", sync);
-    sync();
-  });
+function buildForm(fields, values, onSave, submitLabel = "Save", onCancel) {
+  const parts = fields.map(f => field(f, values[f.k], values));
   const status = h("span", { class: "status" });
   const btn = h("button", { class: "btn", type: "submit" }, submitLabel);
   return h("form", {
@@ -345,13 +388,17 @@ function buildForm(fields, values, onSave, submitLabel = "Simpan", onCancel) {
     onsubmit: async e => {
       e.preventDefault();
       btn.disabled = true;
-      status.textContent = "Menyimpan…";
-      const vals = Object.fromEntries(fields.map((f, i) => [f.k, parts[i].get()]));
+      status.textContent = "Saving…";
       try {
+        const vals = {};
+        fields.forEach((f, i) => {
+          const v = parts[i].get();
+          if (parts[i].multi) Object.assign(vals, v); else vals[f.k] = v;
+        });
         await onSave(vals);
-        status.textContent = "Tersimpan ✓";
+        status.textContent = "Saved ✓";
       } catch (err) {
-        status.textContent = "Gagal: " + (err.message || err);
+        status.textContent = "Couldn't save: " + (err.message || err);
       } finally {
         btn.disabled = false;
       }
@@ -360,30 +407,30 @@ function buildForm(fields, values, onSave, submitLabel = "Simpan", onCancel) {
     parts.map(p => p.node),
     h("div", { class: "actions" },
       btn,
-      onCancel ? h("button", { type: "button", class: "btn ghost", onclick: onCancel }, "Batal") : null,
+      onCancel ? h("button", { type: "button", class: "btn ghost", onclick: onCancel }, "Cancel") : null,
       status));
 }
 
-// ---------- Halaman ----------
+// ---------- Pages ----------
 function showLogin(msg = "") {
   const email = h("input", { type: "email", required: true, autocomplete: "username", placeholder: "Email" });
   const pass = h("input", { type: "password", required: true, autocomplete: "current-password", placeholder: "Password" });
   const status = h("p", { class: "status" }, msg);
-  const btn = h("button", { class: "btn", type: "submit" }, "Masuk");
+  const btn = h("button", { class: "btn", type: "submit" }, "Sign in");
   root.replaceChildren(h("form", {
     class: "login",
     onsubmit: async e => {
       e.preventDefault();
       btn.disabled = true;
-      status.textContent = "Masuk…";
+      status.textContent = "Signing in…";
       const { data, error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: pass.value });
       btn.disabled = false;
-      if (error) { status.textContent = "Gagal: " + error.message; return; }
+      if (error) { status.textContent = "Couldn't sign in: " + error.message; return; }
       showDashboard(data.session);
     },
   },
     h("h1", {}, "Admin"),
-    h("p", { class: "sub" }, "Masuk untuk mengelola portfolio & CV."),
+    h("p", { class: "sub" }, "Sign in to manage your portfolio."),
     email, pass, btn, status));
   email.focus();
 }
@@ -391,7 +438,7 @@ function showLogin(msg = "") {
 let currentTab = "profile";
 
 function showDashboard(session) {
-  const tabs = [["profile", "Profil"], ["projects", "Portfolio"], ["cv_items", "CV"]];
+  const tabs = [["profile", "Profile"], ["design", "Design"], ["research", "Research"], ["cv", "Personal Background"]];
   const body = h("div", {});
   const nav = h("nav", { class: "tabs" },
     tabs.map(([k, label]) => h("button", { type: "button", "data-k": k, onclick: () => open(k) }, label)));
@@ -400,8 +447,8 @@ function showDashboard(session) {
     h("div", { class: "topbar" },
       h("span", { class: "sub" }, session.user.email),
       h("span", { class: "right" },
-        h("a", { href: "../", target: "_blank", rel: "noopener" }, "Lihat website ↗"),
-        h("button", { class: "btn ghost sm", type: "button", onclick: async () => { await sb.auth.signOut(); showLogin(); } }, "Keluar"))),
+        h("a", { href: "../", target: "_blank", rel: "noopener" }, "View site ↗"),
+        h("button", { class: "btn ghost sm", type: "button", onclick: async () => { await sb.auth.signOut(); showLogin(); } }, "Sign out"))),
     nav, body);
 
   function open(k) {
@@ -410,29 +457,29 @@ function showDashboard(session) {
     if (k === "profile") renderProfile(body);
     else renderList(body, k);
   }
-  open(currentTab);
+  open(LISTS[currentTab] || currentTab === "profile" ? currentTab : "profile");
 }
 
-// Saklar mode maintenance: langsung tersimpan saat diklik.
+// Maintenance switch: saved the moment it's clicked.
 function maintenanceCard(profile) {
-  const toggle = h("input", { type: "checkbox", class: "switch", role: "switch", "aria-label": "Mode maintenance" });
+  const toggle = h("input", { type: "checkbox", class: "switch", role: "switch", "aria-label": "Maintenance mode" });
   toggle.checked = !!profile.maintenance;
-  const msg = h("textarea", { rows: 2, placeholder: "Website sedang diperbarui. Silakan kembali lagi sebentar lagi.", "aria-label": "Pesan maintenance" });
+  const msg = h("textarea", { rows: 2, placeholder: "This site is being updated. Please check back soon.", "aria-label": "Maintenance message" });
   msg.value = profile.maintenance_message || "";
   const status = h("span", { class: "status" });
   const card = h("div", { class: "maint-card" });
+  const state = h("p", { class: "maint-state" });
   const paint = () => {
     card.classList.toggle("on", toggle.checked);
     state.textContent = toggle.checked
-      ? "AKTIF: pengunjung sekarang melihat halaman “Under maintenance”."
-      : "Mati: website tampil normal untuk semua orang.";
+      ? "ON: visitors now see the “Under maintenance” page."
+      : "Off: the site is live for everyone.";
   };
-  const state = h("p", { class: "maint-state" });
   const save = async (fields, okText) => {
-    status.textContent = "Menyimpan…";
+    status.textContent = "Saving…";
     const res = await sb.from("profile").update(fields).eq("id", 1).select();
     if (res.error || !res.data?.length) {
-      status.textContent = "Gagal: " + (res.error?.message || "tidak diizinkan");
+      status.textContent = "Couldn't save: " + (res.error?.message || "not allowed");
       return false;
     }
     status.textContent = okText;
@@ -441,98 +488,105 @@ function maintenanceCard(profile) {
   toggle.addEventListener("change", async () => {
     toggle.disabled = true;
     const ok = await save({ maintenance: toggle.checked, maintenance_message: msg.value.trim() },
-      toggle.checked ? "Maintenance dinyalakan ✓" : "Maintenance dimatikan ✓");
+      toggle.checked ? "Maintenance turned on ✓" : "Maintenance turned off ✓");
     if (!ok) toggle.checked = !toggle.checked;
     toggle.disabled = false;
     paint();
   });
   const saveMsg = h("button", { type: "button", class: "btn ghost sm",
-    onclick: () => save({ maintenance_message: msg.value.trim() }, "Pesan tersimpan ✓") }, "Simpan pesan");
+    onclick: () => save({ maintenance_message: msg.value.trim() }, "Message saved ✓") }, "Save message");
   paint();
   card.append(
-    h("label", { class: "maint-head" }, toggle, h("strong", {}, "Mode maintenance")),
+    h("label", { class: "maint-head" }, toggle, h("strong", {}, "Maintenance mode")),
     state,
-    h("div", { class: "field" }, h("span", {}, "Pesan untuk pengunjung (opsional)"), msg),
+    h("div", { class: "field" }, h("span", {}, "Message for visitors (optional)"), msg),
     h("div", { class: "actions" }, saveMsg, status,
-      h("a", { href: "/", target: "_blank", rel: "noopener", class: "sub" }, "Lihat website ↗")),
-    h("small", { class: "sub" }, "Saat aktif, kamu tetap bisa melihat website asli selama login di browser ini."));
+      h("a", { href: "/", target: "_blank", rel: "noopener", class: "sub" }, "View site ↗")),
+    h("small", { class: "sub" }, "While it's on, you still see the real site as long as you're signed in on this browser."));
   return card;
 }
 
 async function renderProfile(body) {
-  body.replaceChildren(h("p", { class: "sub" }, "Memuat…"));
+  body.replaceChildren(h("p", { class: "sub" }, "Loading…"));
   const { data, error } = await sb.from("profile").select("*").eq("id", 1).maybeSingle();
   if (error) return body.replaceChildren(errBox(error));
-  body.replaceChildren(maintenanceCard(data || {}), buildForm(FIELDS.profile, data || {}, async vals => {
+  body.replaceChildren(maintenanceCard(data || {}), buildForm(PROFILE_FIELDS, data || {}, async vals => {
     const res = await sb.from("profile").upsert({ id: 1, ...vals, updated_at: new Date().toISOString() }).select();
     if (res.error) throw res.error;
     mustChange(res.data);
-  }, "Simpan profil"));
+  }, "Save profile"));
 }
 
-async function renderList(body, table) {
-  body.replaceChildren(h("p", { class: "sub" }, "Memuat…"));
-  const { data, error } = await sb.from(table).select("*").order("sort").order("created_at", { ascending: false });
+async function renderList(body, key) {
+  const conf = LISTS[key];
+  body.replaceChildren(h("p", { class: "sub" }, "Loading…"));
+  let q = sb.from(conf.table).select("*").order("created_at", { ascending: false });
+  if (conf.kind) q = q.eq("kind", conf.kind);
+  const { data, error } = await q;
   if (error) return body.replaceChildren(errBox(error));
+  const rows = conf.sort(data || []);
 
   const formSlot = h("div", {});
   const openForm = row => {
     const isNew = !row;
     formSlot.replaceChildren(h("div", { class: "form-box" },
-      h("h3", {}, isNew ? "Tambah baru" : "Edit"),
-      buildForm(FIELDS[table], row || {}, async vals => {
-        if (table === "projects") vals.slug = slugify(vals.slug || vals.title) || null;
-        const q = isNew ? sb.from(table).insert(vals) : sb.from(table).update(vals).eq("id", row.id);
+      h("h3", {}, isNew ? `New ${conf.noun}` : "Edit"),
+      buildForm(conf.fields, row || {}, async vals => {
+        if (conf.kind) vals.kind = conf.kind;
+        if (conf.table === "projects") vals.slug = slugify(vals.slug || vals.title) || null;
+        const q = isNew ? sb.from(conf.table).insert(vals) : sb.from(conf.table).update(vals).eq("id", row.id);
         const res = await q.select();
-        if (res.error?.code === "23505") throw new Error(`Alamat "${vals.slug}" sudah dipakai project lain. Ganti alamat halamannya.`);
+        if (res.error?.code === "23505") throw new Error(`The address "${vals.slug}" is already used by another project. Choose a different page address.`);
         if (res.error) throw res.error;
         mustChange(res.data);
-        renderList(body, table);
-      }, isNew ? "Tambah" : "Simpan", () => formSlot.replaceChildren())));
+        renderList(body, key);
+      }, isNew ? "Add" : "Save", () => formSlot.replaceChildren())));
     formSlot.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const remove = async row => {
-    if (!confirm(`Hapus "${row.title}"? Ini tidak bisa dibatalkan.`)) return;
-    const res = await sb.from(table).delete().eq("id", row.id).select();
-    if (res.error) return alert("Gagal: " + res.error.message);
-    if (!res.data?.length) return alert("Tidak diizinkan menghapus. Cek email admin di supabase-setup.sql.");
-    renderList(body, table);
+    if (!confirm(`Delete "${row.title}"? This can't be undone.`)) return;
+    const res = await sb.from(conf.table).delete().eq("id", row.id).select();
+    if (res.error) return alert("Couldn't delete: " + res.error.message);
+    if (!res.data?.length) return alert("Not allowed to delete. Make sure you are signed in with the admin email.");
+    renderList(body, key);
   };
 
-  const items = data.length
-    ? data.map(r => h("div", { class: "item row" },
+  const items = rows.length
+    ? rows.map(r => h("div", { class: "item row" },
         h("div", {},
           h("strong", {}, r.title),
-          h("div", { class: "sub" }, SUMMARY[table](r).filter(Boolean).join(" · "))),
+          h("div", { class: "sub" }, SUMMARY[conf.table](r).filter(Boolean).join(" · "))),
         h("div", { class: "row-actions" },
-          table === "projects" ? h("a", { class: "btn ghost sm", href: projectUrl(r), target: "_blank", rel: "noopener" }, "Lihat ↗") : null,
+          conf.table === "projects" ? h("a", { class: "btn ghost sm", href: projectUrl(r), target: "_blank", rel: "noopener" }, "View ↗") : null,
           h("button", { class: "btn ghost sm", type: "button", onclick: () => openForm(r) }, "Edit"),
-          h("button", { class: "btn ghost sm danger", type: "button", onclick: () => remove(r) }, "Hapus"))))
-    : [h("p", { class: "sub" }, "Belum ada data. Klik “+ Tambah”.")];
+          h("button", { class: "btn ghost sm danger", type: "button", onclick: () => remove(r) }, "Delete"))))
+    : [h("p", { class: "sub" }, `Nothing here yet. Click “+ Add”.`)];
 
   body.replaceChildren(
-    h("div", { class: "list-head" }, h("button", { class: "btn", type: "button", onclick: () => openForm(null) }, "+ Tambah")),
+    h("div", { class: "list-head" },
+      h("button", { class: "btn", type: "button", onclick: () => openForm(null) }, "+ Add"),
+      h("span", { class: "sub" }, conf.table === "projects" ? "Sorted automatically: newest year first." : "Sorted automatically: most recent first.")),
     formSlot,
     ...items);
 }
 
-// ---------- Mulai ----------
+// ---------- Start ----------
 if (!isConfigured) {
   root.before(h("div", { class: "wrap", style: "padding:24px 24px 0" },
     h("div", { class: "notice", style: "margin:0;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap" },
-      h("span", {}, "Mode demo: Supabase belum disambung. Login pakai email & password apa saja. Perubahan cuma tersimpan di browser ini, untuk coba-coba."),
+      h("span", {}, "Demo mode: Supabase isn't connected. Sign in with any email & password. Changes are only stored in this browser."),
       h("button", {
         class: "btn ghost sm", type: "button",
         onclick: async () => {
-          if (!confirm("Kembalikan semua data ke contoh awal?")) return;
+          if (!confirm("Reset all data to the sample content?")) return;
           (await import("../demo-client.js")).resetDemo();
           location.reload();
         },
-      }, "Reset data contoh"))));
+      }, "Reset sample data"))));
 }
 
 const { data: { session } } = await sb.auth.getSession();
 if (session) showDashboard(session);
 else showLogin();
-sb.auth.onAuthStateChange(evt => { if (evt === "SIGNED_OUT") showLogin("Kamu sudah keluar."); });
+sb.auth.onAuthStateChange(evt => { if (evt === "SIGNED_OUT") showLogin("You've signed out."); });

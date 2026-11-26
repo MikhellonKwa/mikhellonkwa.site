@@ -44,8 +44,8 @@ export const DEMO = {
     { id: "d4", slug: "landing-page-event", title: "Landing Page Event", year: "2024", subtitle: "Website acara himpunan", tags: ["web", "design"], description: "Deskripsi lengkap project.", url: "", image_url: "" },
   ],
   cv: [
-    { type: "pengalaman", title: "Posisi / Peran", org: "Nama Perusahaan", period: "2025 — Sekarang", description: "Apa yang kamu kerjakan dan capai." },
-    { type: "pengalaman", title: "Magang", org: "Nama Perusahaan", period: "2024", description: "" },
-    { type: "pendidikan", title: "Jurusan", org: "Nama Universitas", period: "2021 — 2025", description: "" },
+    { type: "pengalaman", title: "Company Name", org: "Junior Architect", start_ym: "2025-03", end_ym: "present", description: "What you worked on and achieved." },
+    { type: "pengalaman", title: "Studio Name", org: "Intern", start_ym: "2024-06", end_ym: "2024-12", description: "" },
+    { type: "pendidikan", title: "University Name", org: "Bachelor of Architecture", start_ym: "2020-08", end_ym: "2024-07", description: "" },
   ],
 };
