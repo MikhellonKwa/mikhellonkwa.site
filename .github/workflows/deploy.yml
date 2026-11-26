@@ -24,6 +24,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # Tempel versi (?v=<commit>) ke semua file .js/.css milik website, supaya
+      # browser pengunjung tidak memakai file lama dari cache setelah update.
+      - name: Cache-busting
+        run: |
+          V="${GITHUB_SHA::8}"
+          find website -name '*.js' -print0 | xargs -0 sed -i -E \
+            -e "s#(from \"\.{0,2}/[^\"]+\.js)\"#\1?v=$V\"#g" \
+            -e "s#(import\(\"\.{0,2}/[^\"]+\.js)\"#\1?v=$V\"#g"
+          find website -name '*.html' -print0 | xargs -0 sed -i -E \
+            -e "s#(src=\"[^\":]+\.js)\"#\1?v=$V\"#g" \
+            -e "s#(href=\"[^\":]+\.css)\"#\1?v=$V\"#g"
+          grep -rhoE '[a-z./-]+\.(js|css)\?v=[0-9a-f]+' website | sort -u
       - uses: actions/upload-pages-artifact@v3
         with:
           path: website

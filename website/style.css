@@ -117,6 +117,16 @@ img { display: block; max-width: 100%; }
 
 /* ---------- Work ---------- */
 .work { border-top: 1px solid var(--line); padding-bottom: 72px; }
+.anchor { display: block; position: relative; top: -16px; }
+.kind-tabs { display: flex; gap: 28px; padding-top: 28px; }
+.kind-tab {
+  background: none; border: 0; padding: 4px 0; min-height: 44px; cursor: pointer;
+  font: inherit; font-size: clamp(1.3rem, 2.4vw, 1.7rem); font-weight: 500; letter-spacing: -.02em;
+  color: var(--dim); transition: color .2s;
+}
+.kind-tab:hover { color: var(--soft); }
+.kind-tab[aria-selected="true"] { color: var(--fg); }
+.kind-tab sup { font-size: .5em; font-weight: 400; margin-left: 4px; color: var(--dim); vertical-align: super; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px 24px; flex-wrap: wrap; padding: 16px 0 28px; }
 .filters { display: flex; flex-wrap: wrap; gap: 0 20px; }
 .filters button {

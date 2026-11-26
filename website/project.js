@@ -161,7 +161,9 @@ function render({ profile, project: p, route: r }) {
   const desc = paragraphs(p.description);
 
   app.replaceChildren(h("article", { class: "detail" },
-    h("a", { class: "back", href: "/#work" }, "← Semua project"),
+    p.kind === "research"
+      ? h("a", { class: "back", href: "/#research" }, "← Semua research")
+      : h("a", { class: "back", href: "/#work" }, "← Semua project"),
     h("header", { class: "detail-top reveal" },
       p.year ? h("p", { class: "year" }, p.year) : null,
       h("h1", {}, p.title),

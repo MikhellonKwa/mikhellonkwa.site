@@ -17,6 +17,7 @@ const FIELDS = {
   ],
   projects: [
     { k: "title", label: "Judul", req: true },
+    { k: "kind", label: "Masuk ke tab", type: "select", options: [["work", "Work"], ["research", "Research"]] },
     { k: "slug", label: "Alamat halaman", type: "slug", hint: "Kosongkan untuk dibuat otomatis dari judul. Hanya huruf kecil, angka, dan tanda -." },
     { k: "subtitle", label: "Subjudul singkat", hint: "Muncul di bawah judul kartu, mis. Aplikasi kasir untuk UMKM." },
     { k: "year", label: "Tahun" },
@@ -38,7 +39,7 @@ const FIELDS = {
 };
 
 const SUMMARY = {
-  projects: r => [r.year, (r.tags || []).join(", "), r.slug ? "/project/" + r.slug : null,
+  projects: r => [r.kind === "research" ? "Research" : "Work", r.year, (r.tags || []).join(", "), r.slug ? "/project/" + r.slug : null,
     Array.isArray(r.blocks) && r.blocks.length ? `${r.blocks.length} blok konten` : null],
   cv_items: r => [CV_TYPES.find(([k]) => k === r.type)?.[1], r.org, r.period],
 };

@@ -45,35 +45,69 @@ function card(p) {
       p.subtitle ? h("p", { class: "st" }, p.subtitle) : null));
 }
 
+// Tab Work | Research, lalu filter kategori, lalu grid kartu.
+const KINDS = [["work", "Work"], ["research", "Research"]];
+const kindOf = p => (p.kind === "research" ? "research" : "work");
+
 function work(projects) {
   const norm = t => t.trim().toLowerCase();
-  const tags = [...new Set(projects.flatMap(p => (p.tags || []).map(norm)))];
-  const cards = projects.map(card);
+  const byKind = Object.fromEntries(KINDS.map(([k]) => [k, projects.filter(p => kindOf(p) === k)]));
+  const kinds = KINDS.filter(([k]) => byKind[k].length);
+  const filters = h("div", { class: "filters", role: "group", "aria-label": "Filter kategori" });
   const count = h("span", { class: "count" });
-  const setCount = n => (count.textContent = `${n} project`);
-  setCount(projects.length);
+  const grid = h("div", { class: "grid", role: "tabpanel" });
+  let kind = location.hash === "#research" && byKind.research.length ? "research" : (kinds[0]?.[0] || "work");
 
-  const buttons = ["all", ...tags].map(t => h("button", {
-    type: "button", "data-t": t, "aria-pressed": t === "all" ? "true" : "false",
-    onclick: () => {
-      buttons.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.t === t)));
-      let n = 0;
-      cards.forEach((c, i) => {
-        const show = t === "all" || (projects[i].tags || []).some(x => norm(x) === t);
-        c.hidden = !show;
-        if (show) { n++; c.classList.add("in"); }
-      });
-      setCount(n);
-    },
-  }, t));
+  const tabs = h("div", { class: "kind-tabs", role: "tablist", "aria-label": "Jenis project" },
+    kinds.map(([k, label]) => h("button", {
+      type: "button", role: "tab", class: "kind-tab", "data-k": k,
+      onclick: () => { if (kind !== k) { history.replaceState(null, "", "#" + k); select(k); } },
+    }, label, h("sup", {}, String(byKind[k].length)))));
 
+  function showTag(t) {
+    filters.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.t === t)));
+    let n = 0;
+    grid.querySelectorAll(".card").forEach(c => {
+      const show = t === "all" || c.dataset.tags.split("|").includes(t);
+      c.hidden = !show;
+      if (show) n++;
+    });
+    count.textContent = `${n} project`;
+  }
+
+  function select(k) {
+    kind = k;
+    tabs.querySelectorAll(".kind-tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.k === k)));
+    const list = byKind[k];
+    const tags = [...new Set(list.flatMap(p => (p.tags || []).map(norm)))];
+    filters.replaceChildren(...(tags.length ? ["all", ...tags] : []).map(t =>
+      h("button", { type: "button", "data-t": t, onclick: () => showTag(t) }, t)));
+    grid.replaceChildren(...list.map(p => {
+      const c = card(p);
+      c.classList.add("in");
+      c.dataset.tags = (p.tags || []).map(norm).join("|");
+      return c;
+    }));
+    showTag("all");
+  }
+
+  // Link sidebar "Work" / "Research" ikut mengganti tab.
+  addEventListener("hashchange", () => {
+    const k = location.hash.slice(1);
+    if (byKind[k]?.length && k !== kind) select(k);
+  });
+
+  if (!projects.length) {
+    return h("section", { class: "work", id: "work", "aria-label": "Project" },
+      h("div", { class: "toolbar" }, h("span", {}), h("span", { class: "count" }, "0 project")),
+      h("p", { class: "sub" }, "Belum ada project."));
+  }
+  select(kind);
   return h("section", { class: "work", id: "work", "aria-label": "Project" },
-    h("div", { class: "toolbar" },
-      tags.length ? h("div", { class: "filters", role: "group", "aria-label": "Filter project" }, buttons) : h("span", {}),
-      count),
-    projects.length
-      ? h("div", { class: "grid" }, cards)
-      : h("p", { class: "sub" }, "Belum ada project."));
+    byKind.research.length ? h("span", { id: "research", class: "anchor" }) : null,
+    tabs,
+    h("div", { class: "toolbar" }, filters, count),
+    grid);
 }
 
 // ---------- Blok about / cv / kontak ----------

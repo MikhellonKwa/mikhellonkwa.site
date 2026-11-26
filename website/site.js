@@ -14,6 +14,7 @@ const ICONS = {
   ext: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  book: '<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/>',
   briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>',
   chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
 };
@@ -53,7 +54,7 @@ export function profileLinks(p) {
   return [...items, ...links];
 }
 
-const SECTIONS = [["work", "Work", "grid"], ["about", "About", "user"], ["cv", "Experience", "briefcase"], ["contact", "Contact", "chat"]];
+const SECTIONS = [["work", "Work", "grid"], ["research", "Research", "book"], ["about", "About", "user"], ["cv", "Experience", "briefcase"], ["contact", "Contact", "chat"]];
 
 export function renderSidebar(p, { base = "" } = {}) {
   const body = document.getElementById("side-body");

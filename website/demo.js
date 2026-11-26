@@ -39,6 +39,8 @@ export const DEMO = {
     },
     { id: "d2", slug: "redesign-aplikasi-kampus", title: "Redesign Aplikasi Kampus", year: "2025", subtitle: "Studi kasus UI/UX", tags: ["design"], description: "Deskripsi lengkap project.", url: "", image_url: "" },
     { id: "d3", slug: "dashboard-data", title: "Dashboard Data", year: "2025", subtitle: "Visualisasi data penjualan", tags: ["web", "data"], description: "Deskripsi lengkap project.", url: "", image_url: "" },
+    { id: "d5", slug: "riset-kepadatan-kota", kind: "research", title: "Riset Kepadatan Kota", year: "2025", subtitle: "Contoh project di tab Research", tags: ["urban", "data"], description: "Contoh research.", url: "", image_url: "" },
+    { id: "d6", slug: "studi-hunian-vertikal", kind: "research", title: "Studi Hunian Vertikal", year: "2024", subtitle: "Contoh research kedua", tags: ["hunian"], description: "Contoh research.", url: "", image_url: "" },
     { id: "d4", slug: "landing-page-event", title: "Landing Page Event", year: "2024", subtitle: "Website acara himpunan", tags: ["web", "design"], description: "Deskripsi lengkap project.", url: "", image_url: "" },
   ],
   cv: [
