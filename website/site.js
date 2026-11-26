@@ -54,7 +54,7 @@ export function profileLinks(p) {
   return [...items, ...links];
 }
 
-const SECTIONS = [["work", "Work", "grid"], ["research", "Research", "book"], ["about", "About", "user"], ["cv", "Experience", "briefcase"], ["contact", "Contact", "chat"]];
+const SECTIONS = [["design", "Design", "grid"], ["research", "Research", "book"], ["about", "About", "user"], ["cv", "Experience", "briefcase"], ["contact", "Contact", "chat"]];
 
 export function renderSidebar(p, { base = "" } = {}) {
   const body = document.getElementById("side-body");
@@ -85,15 +85,24 @@ export function hideMissingNav() {
   });
 }
 
-// Link ke bagian di halaman yang sama (#work, #about, …) cukup menggulir ke
+// "#…" di alamat (mis. /#top, /#about) langsung dihapus begitu halaman dibuka,
+// sebelum data selesai dimuat. Bagian yang dituju tetap dibuka setelahnya.
+const cleanUrl = () => history.replaceState(null, "", location.pathname + location.search);
+const initialHash = decodeURIComponent(location.hash.slice(1));
+if (location.hash) cleanUrl();
+
+// Nama lama bagian → nama baru.
+const ALIAS = { work: "design", top: "" };
+
+// Link ke bagian di halaman yang sama (#design, #about, …) cukup menggulir ke
 // sana, tanpa menambah "#…" ke alamat. Alamat tetap https://mikhellonkwa.site/
-export function cleanHashNav(onSection) {
+export function cleanHashNav() {
   const smooth = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
-  const clean = () => history.replaceState(null, "", location.pathname + location.search);
+  const clean = cleanUrl;
   const go = (id, behavior) => {
-    const el = document.getElementById(id);
+    id = ALIAS[id] ?? id;
+    const el = id && document.getElementById(id);
     if (!el) return false;
-    onSection?.(id);
     el.scrollIntoView({ behavior, block: "start" });
     return true;
   };
@@ -114,11 +123,33 @@ export function cleanHashNav(onSection) {
   });
 
   // Datang dari halaman lain lewat /#research, /#about, dll.
-  if (location.hash) {
-    const id = decodeURIComponent(location.hash.slice(1));
-    clean();
-    requestAnimationFrame(() => go(id, "auto"));
+  if (initialHash) requestAnimationFrame(() => go(initialHash, "auto"));
+}
+
+// ---------- Mode maintenance ----------
+// Kalau dinyalakan di admin, pengunjung hanya melihat halaman "under maintenance".
+// Admin yang sedang login tetap melihat website (dengan pita pemberitahuan).
+export async function maintenanceGate(sb, profile) {
+  if (!profile?.maintenance) return false;
+  const { data } = await sb.auth.getSession();
+  if (data?.session) {
+    const { data: isAdmin } = await sb.rpc("is_admin");
+    if (isAdmin) {
+      document.body.prepend(h("div", { class: "maint-bar", role: "status" },
+        "Mode maintenance aktif. Pengunjung melihat halaman maintenance; kamu melihat website karena login sebagai admin. ",
+        h("a", { href: "/admin/" }, "Matikan di admin →")));
+      return false;
+    }
   }
+  const email = profile.email;
+  document.title = "Under maintenance" + (profile.name ? " — " + profile.name : "");
+  document.body.className = "maint";
+  document.body.replaceChildren(h("main", { class: "maint-page" },
+    h("p", { class: "maint-name" }, profile.name || ""),
+    h("h1", {}, "Under maintenance"),
+    h("p", { class: "maint-msg" }, profile.maintenance_message || "Website sedang diperbarui. Silakan kembali lagi sebentar lagi."),
+    email ? h("a", { class: "pill", href: "mailto:" + email }, email) : null));
+  return true;
 }
 
 // Menu sidebar di HP (buka/tutup).

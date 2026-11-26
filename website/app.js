@@ -1,5 +1,5 @@
 import { getClient, isConfigured, CV_TYPES, h, safeUrl, projectUrl } from "./db.js";
-import { setupChrome, hideMissingNav, reveal, initials, paragraphs, renderSidebar, initDrawer, profileLinks, cleanHashNav } from "./site.js";
+import { setupChrome, hideMissingNav, reveal, initials, paragraphs, renderSidebar, initDrawer, profileLinks, cleanHashNav, maintenanceGate } from "./site.js";
 
 const app = document.getElementById("app");
 initDrawer();
@@ -31,7 +31,7 @@ function intro(p) {
     pills.length ? h("div", { class: "pills reveal" }, pills) : null);
 }
 
-// ---------- Work: filter + grid kartu ----------
+// ---------- Kartu project ----------
 function card(p) {
   const img = safeUrl(p.image_url);
   return h("a", { class: "card reveal", href: projectUrl(p) },
@@ -39,31 +39,28 @@ function card(p) {
       img
         ? h("img", { src: img, alt: "", loading: "lazy", decoding: "async" })
         : h("div", { class: "placeholder", "aria-hidden": "true" }, initials(p.title))),
+    safeUrl(p.pdf_url) ? h("span", { class: "badge" }, "PDF") : null,
     h("div", { class: "caption" },
       p.year ? h("p", { class: "year" }, p.year) : null,
       h("h3", {}, p.title),
       p.subtitle ? h("p", { class: "st" }, p.subtitle) : null));
 }
 
-// Tab Work | Research, lalu filter kategori, lalu grid kartu.
-const KINDS = [["work", "Work"], ["research", "Research"]];
-let selectKind = () => {};
-const kindOf = p => (p.kind === "research" ? "research" : "work");
+// Dua bagian terpisah: Design dan Research. Masing-masing punya filter sendiri.
+const isResearch = p => p.kind === "research";
 
-function work(projects) {
+function projectSection(id, title, list, emptyText) {
   const norm = t => t.trim().toLowerCase();
-  const byKind = Object.fromEntries(KINDS.map(([k]) => [k, projects.filter(p => kindOf(p) === k)]));
-  const kinds = KINDS.filter(([k]) => byKind[k].length);
-  const filters = h("div", { class: "filters", role: "group", "aria-label": "Filter kategori" });
+  const tags = [...new Set(list.flatMap(p => (p.tags || []).map(norm)))];
   const count = h("span", { class: "count" });
-  const grid = h("div", { class: "grid", role: "tabpanel" });
-  let kind = location.hash === "#research" && byKind.research.length ? "research" : (kinds[0]?.[0] || "work");
-
-  const tabs = h("div", { class: "kind-tabs", role: "tablist", "aria-label": "Jenis project" },
-    kinds.map(([k, label]) => h("button", {
-      type: "button", role: "tab", class: "kind-tab", "data-k": k,
-      onclick: () => { if (kind !== k) select(k); },
-    }, label, h("sup", {}, String(byKind[k].length)))));
+  const grid = h("div", { class: "grid" }, list.map(p => {
+    const c = card(p);
+    c.dataset.tags = (p.tags || []).map(norm).join("|");
+    return c;
+  }));
+  const filters = h("div", { class: "filters", role: "group", "aria-label": `Filter ${title}` },
+    (tags.length ? ["all", ...tags] : []).map(t =>
+      h("button", { type: "button", "data-t": t, onclick: () => showTag(t) }, t)));
 
   function showTag(t) {
     filters.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.t === t)));
@@ -71,41 +68,16 @@ function work(projects) {
     grid.querySelectorAll(".card").forEach(c => {
       const show = t === "all" || c.dataset.tags.split("|").includes(t);
       c.hidden = !show;
-      if (show) n++;
+      if (show) { n++; c.classList.add("in"); }
     });
     count.textContent = `${n} project`;
   }
+  showTag("all");
 
-  function select(k) {
-    kind = k;
-    tabs.querySelectorAll(".kind-tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.k === k)));
-    const list = byKind[k];
-    const tags = [...new Set(list.flatMap(p => (p.tags || []).map(norm)))];
-    filters.replaceChildren(...(tags.length ? ["all", ...tags] : []).map(t =>
-      h("button", { type: "button", "data-t": t, onclick: () => showTag(t) }, t)));
-    grid.replaceChildren(...list.map(p => {
-      const c = card(p);
-      c.classList.add("in");
-      c.dataset.tags = (p.tags || []).map(norm).join("|");
-      return c;
-    }));
-    showTag("all");
-  }
-
-  // Menu sidebar "Work" / "Research" ikut mengganti tab.
-  selectKind = k => { if (byKind[k]?.length && k !== kind) select(k); };
-
-  if (!projects.length) {
-    return h("section", { class: "work", id: "work", "aria-label": "Project" },
-      h("div", { class: "toolbar" }, h("span", {}), h("span", { class: "count" }, "0 project")),
-      h("p", { class: "sub" }, "Belum ada project."));
-  }
-  select(kind);
-  return h("section", { class: "work", id: "work", "aria-label": "Project" },
-    byKind.research.length ? h("span", { id: "research", class: "anchor" }) : null,
-    tabs,
+  return h("section", { class: "work", id, "aria-labelledby": id + "-title" },
+    h("h2", { class: "sec-title reveal", id: id + "-title" }, title, h("sup", {}, String(list.length))),
     h("div", { class: "toolbar" }, filters, count),
-    grid);
+    list.length ? grid : h("p", { class: "sub empty-note" }, emptyText));
 }
 
 // ---------- Blok about / cv / kontak ----------
@@ -149,7 +121,8 @@ function render({ profile: p, projects, cv, demo }) {
   app.replaceChildren(...[
     demo ? h("div", { class: "notice" }, "Mode demo: data masih tersimpan di browser ini saja. Sambungkan Supabase supaya bisa online (lihat PANDUAN.md).") : null,
     intro(p),
-    work(projects),
+    projectSection("design", "Design", projects.filter(x => !isResearch(x)), "Belum ada project design."),
+    projects.some(isResearch) ? projectSection("research", "Research", projects.filter(isResearch), "") : null,
     p.bio ? block("about", "About", h("div", { class: "prose" }, paragraphs(p.bio).map(t => h("p", {}, t)))) : null,
     cvBlock(cv, p.skills),
     contact(p),
@@ -158,9 +131,11 @@ function render({ profile: p, projects, cv, demo }) {
   hideMissingNav();
   reveal();
   // Menu di halaman ini menggulir ke bagiannya tanpa menambah #… ke alamat.
-  cleanHashNav(id => selectKind(id));
+  cleanHashNav();
 }
 
-load().then(render).catch(e => {
+load()
+  .then(async data => { if (!(await maintenanceGate(await getClient(), data.profile))) render(data); })
+  .catch(e => {
   app.replaceChildren(h("p", { class: "sub", style: "padding:96px 0" }, "Gagal memuat data: " + (e.message || e)));
 });

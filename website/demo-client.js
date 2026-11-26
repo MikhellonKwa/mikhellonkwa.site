@@ -86,6 +86,11 @@ const readAsDataUrl = file => new Promise((ok, no) => {
 
 export const client = {
   from: query,
+  // Di mode demo, siapa pun yang login dianggap admin.
+  async rpc(name) {
+    if (name !== "is_admin") return { data: null, error: { message: "rpc tidak dikenal" } };
+    return { data: !!sessionStorage.getItem(SESSION_KEY), error: null };
+  },
   storage: {
     from() {
       return {

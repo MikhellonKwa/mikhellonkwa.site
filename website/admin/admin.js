@@ -17,7 +17,8 @@ const FIELDS = {
   ],
   projects: [
     { k: "title", label: "Judul", req: true },
-    { k: "kind", label: "Masuk ke tab", type: "select", options: [["work", "Work"], ["research", "Research"]] },
+    { k: "kind", label: "Masuk ke bagian", type: "select", options: [["work", "Design"], ["research", "Research"]] },
+    { k: "pdf_url", label: "File paper (PDF)", type: "file", accept: "application/pdf", folder: "papers", when: { k: "kind", eq: "research" }, hint: "Khusus research. Pengunjung bisa membaca preview-nya langsung di halaman project dan mendownload PDF-nya. Maks 50 MB." },
     { k: "slug", label: "Alamat halaman", type: "slug", hint: "Kosongkan untuk dibuat otomatis dari judul. Hanya huruf kecil, angka, dan tanda -." },
     { k: "subtitle", label: "Subjudul singkat", hint: "Muncul di bawah judul kartu, mis. Aplikasi kasir untuk UMKM." },
     { k: "year", label: "Tahun" },
@@ -39,7 +40,7 @@ const FIELDS = {
 };
 
 const SUMMARY = {
-  projects: r => [r.kind === "research" ? "Research" : "Work", r.year, (r.tags || []).join(", "), r.slug ? "/project/" + r.slug : null,
+  projects: r => [r.kind === "research" ? "Research" : "Design", r.pdf_url ? "PDF" : null, r.year, (r.tags || []).join(", "), r.slug ? "/project/" + r.slug : null,
     Array.isArray(r.blocks) && r.blocks.length ? `${r.blocks.length} blok konten` : null],
   cv_items: r => [CV_TYPES.find(([k]) => k === r.type)?.[1], r.org, r.period],
 };
@@ -128,6 +129,7 @@ function field(f, v) {
       onchange: async () => {
         const file = fileIn.files[0];
         if (!file) return;
+        if (file.size > 50 * 1024 * 1024) { status.textContent = "File lebih dari 50 MB. Kecilkan dulu ukurannya."; fileIn.value = ""; return; }
         status.textContent = "Mengupload…";
         try {
           input.value = await upload(file, f.folder);
@@ -150,6 +152,7 @@ function field(f, v) {
   return {
     node: h("label", { class: "field" }, h("span", {}, f.label), input, extra, f.hint ? h("small", {}, f.hint) : null),
     get: () => parse(f, input.value),
+    input,
   };
 }
 
@@ -327,6 +330,15 @@ function blockEditor(f, value) {
 
 function buildForm(fields, values, onSave, submitLabel = "Simpan", onCancel) {
   const parts = fields.map(f => field(f, values[f.k]));
+  // Kolom yang hanya muncul untuk pilihan tertentu (mis. PDF khusus research).
+  fields.forEach((f, i) => {
+    if (!f.when) return;
+    const ctl = parts[fields.findIndex(x => x.k === f.when.k)]?.input;
+    if (!ctl) return;
+    const sync = () => { parts[i].node.hidden = ctl.value !== f.when.eq; };
+    ctl.addEventListener("change", sync);
+    sync();
+  });
   const status = h("span", { class: "status" });
   const btn = h("button", { class: "btn", type: "submit" }, submitLabel);
   return h("form", {
@@ -402,11 +414,57 @@ function showDashboard(session) {
   open(currentTab);
 }
 
+// Saklar mode maintenance: langsung tersimpan saat diklik.
+function maintenanceCard(profile) {
+  const toggle = h("input", { type: "checkbox", class: "switch", role: "switch", "aria-label": "Mode maintenance" });
+  toggle.checked = !!profile.maintenance;
+  const msg = h("textarea", { rows: 2, placeholder: "Website sedang diperbarui. Silakan kembali lagi sebentar lagi.", "aria-label": "Pesan maintenance" });
+  msg.value = profile.maintenance_message || "";
+  const status = h("span", { class: "status" });
+  const card = h("div", { class: "maint-card" });
+  const paint = () => {
+    card.classList.toggle("on", toggle.checked);
+    state.textContent = toggle.checked
+      ? "AKTIF: pengunjung sekarang melihat halaman “Under maintenance”."
+      : "Mati: website tampil normal untuk semua orang.";
+  };
+  const state = h("p", { class: "maint-state" });
+  const save = async (fields, okText) => {
+    status.textContent = "Menyimpan…";
+    const res = await sb.from("profile").update(fields).eq("id", 1).select();
+    if (res.error || !res.data?.length) {
+      status.textContent = "Gagal: " + (res.error?.message || "tidak diizinkan");
+      return false;
+    }
+    status.textContent = okText;
+    return true;
+  };
+  toggle.addEventListener("change", async () => {
+    toggle.disabled = true;
+    const ok = await save({ maintenance: toggle.checked, maintenance_message: msg.value.trim() },
+      toggle.checked ? "Maintenance dinyalakan ✓" : "Maintenance dimatikan ✓");
+    if (!ok) toggle.checked = !toggle.checked;
+    toggle.disabled = false;
+    paint();
+  });
+  const saveMsg = h("button", { type: "button", class: "btn ghost sm",
+    onclick: () => save({ maintenance_message: msg.value.trim() }, "Pesan tersimpan ✓") }, "Simpan pesan");
+  paint();
+  card.append(
+    h("label", { class: "maint-head" }, toggle, h("strong", {}, "Mode maintenance")),
+    state,
+    h("div", { class: "field" }, h("span", {}, "Pesan untuk pengunjung (opsional)"), msg),
+    h("div", { class: "actions" }, saveMsg, status,
+      h("a", { href: "/", target: "_blank", rel: "noopener", class: "sub" }, "Lihat website ↗")),
+    h("small", { class: "sub" }, "Saat aktif, kamu tetap bisa melihat website asli selama login di browser ini."));
+  return card;
+}
+
 async function renderProfile(body) {
   body.replaceChildren(h("p", { class: "sub" }, "Memuat…"));
   const { data, error } = await sb.from("profile").select("*").eq("id", 1).maybeSingle();
   if (error) return body.replaceChildren(errBox(error));
-  body.replaceChildren(buildForm(FIELDS.profile, data || {}, async vals => {
+  body.replaceChildren(maintenanceCard(data || {}), buildForm(FIELDS.profile, data || {}, async vals => {
     const res = await sb.from("profile").upsert({ id: 1, ...vals, updated_at: new Date().toISOString() }).select();
     if (res.error) throw res.error;
     mustChange(res.data);

@@ -1,5 +1,5 @@
 import { getClient, h, safeUrl, projectUrl } from "./db.js";
-import { setupChrome, reveal, paragraphs, renderSidebar, initDrawer } from "./site.js";
+import { setupChrome, reveal, paragraphs, renderSidebar, initDrawer, maintenanceGate } from "./site.js";
 
 const app = document.getElementById("app");
 initDrawer();
@@ -159,11 +159,13 @@ function render({ profile, project: p, route: r }) {
     url ? ["Link", h("a", { href: url, target: "_blank", rel: "noopener" }, "Buka project ↗")] : null,
   ].filter(Boolean);
   const desc = paragraphs(p.description);
+  const pdf = safeUrl(p.pdf_url);
+  if (pdf) facts.push(["Paper", h("a", { href: downloadUrl(pdf) }, "Download PDF ↓")]);
 
   app.replaceChildren(h("article", { class: "detail" },
     p.kind === "research"
       ? h("a", { class: "back", href: "/#research" }, "← Semua research")
-      : h("a", { class: "back", href: "/#work" }, "← Semua project"),
+      : h("a", { class: "back", href: "/#design" }, "← Semua project"),
     h("header", { class: "detail-top reveal" },
       p.year ? h("p", { class: "year" }, p.year) : null,
       h("h1", {}, p.title),
@@ -173,10 +175,67 @@ function render({ profile, project: p, route: r }) {
     (facts.length || desc.length) ? h("section", { class: "block" },
       h("dl", { class: "facts reveal" }, facts.map(([k, v]) => h("div", {}, h("dt", {}, k), h("dd", {}, v)))),
       h("div", { class: "prose reveal" }, desc.map(t => h("p", {}, t)))) : null,
+    pdf ? h("div", { class: "blocks" }, pdfViewer(pdf, p.title)) : null,
     blocks.length ? h("div", { class: "blocks" }, blocks) : null));
   reveal();
 }
 
-load().then(render).catch(e => {
+// ---------- Preview PDF paper (research) ----------
+// Halaman PDF digambar dengan PDF.js supaya tampil sama di HP & laptop.
+// Kalau PDF.js gagal dimuat, pakai penampil PDF bawaan browser.
+const PDFJS = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/";
+
+function downloadUrl(u) {
+  return u.includes("/storage/v1/object/public/") ? u + (u.includes("?") ? "&" : "?") + "download=" : u;
+}
+
+function pdfViewer(url, title) {
+  const info = h("span", { class: "pdf-info" }, "Paper (PDF)");
+  const pages = h("div", { class: "pdf-pages", tabindex: "0", "aria-label": "Preview paper, bisa di-scroll" },
+    h("p", { class: "sub pdf-loading" }, "Memuat preview PDF…"));
+  renderPdf(url, pages, info).catch(() => {
+    pages.replaceChildren(h("iframe", { class: "pdf-frame", src: url, title: `${title} (PDF)` }));
+  });
+  return h("section", { class: "blk size-normal pdf reveal", id: "paper" },
+    h("div", { class: "pdf-bar" }, info,
+      h("span", { class: "pdf-actions" },
+        h("a", { class: "pill", href: url, target: "_blank", rel: "noopener" }, "Buka layar penuh ↗"),
+        h("a", { class: "pill solid", href: downloadUrl(url) }, "Download PDF"))),
+    pages);
+}
+
+async function renderPdf(url, box, info) {
+  const pdfjs = await import(PDFJS + "pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.mjs";
+  const doc = await pdfjs.getDocument({ url }).promise;
+  const first = await doc.getPage(1);
+  const v = first.getViewport({ scale: 1 });
+  box.style.setProperty("--ar", `${v.width} / ${v.height}`);
+  info.textContent = `Paper · ${doc.numPages} halaman`;
+  box.replaceChildren();
+
+  // Halaman digambar saat mendekati area yang terlihat (hemat untuk PDF tebal).
+  const draw = async slot => {
+    const page = await doc.getPage(+slot.dataset.n);
+    const base = page.getViewport({ scale: 1 });
+    const scale = ((slot.clientWidth || box.clientWidth) / base.width) * Math.min(devicePixelRatio || 1, 2);
+    const viewport = page.getViewport({ scale });
+    const canvas = h("canvas", { width: String(Math.floor(viewport.width)), height: String(Math.floor(viewport.height)) });
+    slot.append(canvas);
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+  };
+  const io = new IntersectionObserver(entries => entries.forEach(e => {
+    if (e.isIntersecting) { io.unobserve(e.target); draw(e.target); }
+  }), { root: box, rootMargin: "600px 0px" });
+  for (let n = 1; n <= doc.numPages; n++) {
+    const slot = h("div", { class: "pdf-page", "data-n": String(n), role: "img", "aria-label": `Halaman ${n} dari ${doc.numPages}` });
+    box.append(slot);
+    io.observe(slot);
+  }
+}
+
+load()
+  .then(async data => { if (!(await maintenanceGate(await getClient(), data.profile))) render(data); })
+  .catch(e => {
   app.replaceChildren(h("p", { class: "sub", style: "padding:96px 0" }, "Gagal memuat data: " + (e.message || e)));
 });

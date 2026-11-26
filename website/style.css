@@ -117,16 +117,42 @@ img { display: block; max-width: 100%; }
 
 /* ---------- Work ---------- */
 .work { border-top: 1px solid var(--line); padding-bottom: 72px; }
-.anchor { display: block; position: relative; top: -16px; }
-.kind-tabs { display: flex; gap: 28px; padding-top: 28px; }
-.kind-tab {
-  background: none; border: 0; padding: 4px 0; min-height: 44px; cursor: pointer;
-  font: inherit; font-size: clamp(1.3rem, 2.4vw, 1.7rem); font-weight: 500; letter-spacing: -.02em;
-  color: var(--dim); transition: color .2s;
+/* Judul bagian Design / Research */
+.sec-title {
+  padding-top: 32px; font-size: clamp(1.4rem, 2.6vw, 1.9rem); font-weight: 500; letter-spacing: -.02em; color: var(--fg);
 }
-.kind-tab:hover { color: var(--soft); }
-.kind-tab[aria-selected="true"] { color: var(--fg); }
-.kind-tab sup { font-size: .5em; font-weight: 400; margin-left: 4px; color: var(--dim); vertical-align: super; }
+.sec-title sup { font-size: .45em; font-weight: 400; margin-left: 6px; color: var(--dim); vertical-align: super; }
+.empty-note { padding-bottom: 8px; }
+.card { position: relative; }
+.badge {
+  position: absolute; top: 10px; left: 10px; padding: 3px 9px; border-radius: 999px;
+  background: rgba(0, 0, 0, .7); color: #fff; font-size: .7rem; letter-spacing: .06em;
+}
+
+/* Mode maintenance */
+body.maint { display: grid; place-items: center; min-height: 100vh; padding: 24px; }
+.maint-page { max-width: 560px; text-align: center; display: grid; gap: 18px; justify-items: center; }
+.maint-name { color: var(--dim); font-size: .9rem; letter-spacing: .04em; }
+.maint-page h1 { font-size: clamp(2rem, 6vw, 3.2rem); font-weight: 500; letter-spacing: -.03em; line-height: 1.1; }
+.maint-msg { color: var(--muted); white-space: pre-line; }
+.maint-bar {
+  position: sticky; top: 0; z-index: 60; padding: 10px 16px; text-align: center; font-size: .85rem;
+  background: #f2f2f2; color: #000;
+}
+.maint-bar a { text-decoration: underline; }
+
+/* Preview PDF paper */
+.pdf-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.pdf-info { color: var(--soft); font-size: .95rem; }
+.pdf-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pdf-pages {
+  --ar: 1 / 1.414; max-height: 82vh; overflow-y: auto; display: grid; gap: 12px; padding: 12px;
+  background: var(--tile); border-radius: 2px; overscroll-behavior: contain;
+}
+.pdf-page { width: 100%; aspect-ratio: var(--ar); background: #fff; }
+.pdf-page canvas { display: block; width: 100%; height: 100%; }
+.pdf-frame { width: 100%; height: 82vh; border: 0; background: #fff; }
+.pdf-loading { padding: 24px; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px 24px; flex-wrap: wrap; padding: 16px 0 28px; }
 .filters { display: flex; flex-wrap: wrap; gap: 0 20px; }
 .filters button {
