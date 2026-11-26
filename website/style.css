@@ -239,6 +239,7 @@ body.maint { display: grid; place-items: center; min-height: 100vh; padding: 24p
 .facts dd { color: var(--soft); margin-top: 2px; }
 .facts dd a { border-bottom: 1px solid var(--dim); }
 .facts dd a:hover { border-color: var(--fg); }
+.link-stack { display: grid; gap: 6px; justify-items: start; }
 
 /* ---------- Blok konten halaman project ---------- */
 .blocks { display: grid; gap: 64px; padding: 8px 0 80px; }

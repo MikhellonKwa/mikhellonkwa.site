@@ -23,7 +23,7 @@ const projectFields = research => [
   { k: "location", label: "Location", hint: "City, Country (e.g. Jakarta, Indonesia). Shown as “2027 | Jakarta, Indonesia”." },
   research ? { k: "pdf_url", label: "Paper (PDF)", type: "file", accept: "application/pdf", folder: "papers", hint: "Visitors can read a preview on the project page and download the PDF. Max 50 MB." } : null,
   { k: "description", label: "Description", type: "textarea", rows: 6, hint: "Intro text on the project page. Separate paragraphs with an empty line." },
-  { k: "url", label: "Project link", type: "url", hint: "Optional. Shown as “Open project ↗” on the project page." },
+  { k: "links", label: "Links", type: "linklist", hint: "Add as many as you like (e.g. Behance, Publication, Competition page). Each shows on the project page as “Label ↗”." },
   { k: "tags", label: "Categories / tags", type: "tags", hint: "Separate with commas. Also used as filters on the home page (e.g. residential, interior)." },
   { k: "image_url", label: "Cover image (card thumbnail)", type: "file", accept: "image/*", folder: "projects", hint: "Shown on the home page card. On the project page, the cover only appears when there are no content blocks." },
   { k: "blocks", label: "Project page content", type: "blocks" },
@@ -129,9 +129,45 @@ function periodField(f, row) {
   };
 }
 
+// Several links, each with a label. Older projects with a single "url" are carried over.
+const hostLabel = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+function linkListField(f, v, row) {
+  let items = Array.isArray(v) ? clone(v) : [];
+  if (!items.length && row.url) items = [{ label: "Open project", url: row.url }];
+  const list = h("div", { class: "link-list" });
+  const swap = (i, j) => { [items[i], items[j]] = [items[j], items[i]]; draw(); };
+  const draw = () => list.replaceChildren(...(items.length ? items.map((it, i) => {
+    const label = h("input", { type: "text", placeholder: "Label (e.g. Behance)", "aria-label": `Link ${i + 1} label` });
+    label.value = it.label || "";
+    label.addEventListener("input", () => { it.label = label.value; });
+    const url = h("input", { type: "url", placeholder: "https://…", "aria-label": `Link ${i + 1} URL` });
+    url.value = it.url || "";
+    url.addEventListener("input", () => { it.url = url.value; });
+    return h("div", { class: "link-row" }, label, url,
+      iconBtn("↑", "Move up", () => swap(i, i - 1), i === 0),
+      iconBtn("✕", "Remove link", () => { items.splice(i, 1); draw(); }));
+  }) : [h("p", { class: "sub" }, "No links yet.")]));
+  const add = h("button", {
+    type: "button", class: "btn ghost sm",
+    onclick: () => { items.push({ label: "", url: "" }); draw(); list.lastElementChild?.querySelector("input")?.focus(); },
+  }, "+ Add link");
+  draw();
+  return {
+    node: group(f.label, list, h("div", {}, add), f.hint ? h("small", {}, f.hint) : null),
+    get: () => items
+      .map(it => ({ label: (it.label || "").trim(), url: (it.url || "").trim() }))
+      .filter(it => it.url)
+      .map(it => {
+        if (!/^https?:\/\//i.test(it.url)) throw new Error(`Link "${it.url}" must start with https://`);
+        return { label: it.label || hostLabel(it.url), url: it.url };
+      }),
+  };
+}
+
 function field(f, v, row) {
   if (f.type === "blocks") return blockEditor(f, v);
   if (f.type === "period") return periodField(f, row);
+  if (f.type === "linklist") return linkListField(f, v, row);
   let input;
   const extra = [];
 
@@ -533,7 +569,10 @@ async function renderList(body, key) {
       h("h3", {}, isNew ? `New ${conf.noun}` : "Edit"),
       buildForm(conf.fields, row || {}, async vals => {
         if (conf.kind) vals.kind = conf.kind;
-        if (conf.table === "projects") vals.slug = slugify(vals.slug || vals.title) || null;
+        if (conf.table === "projects") {
+          vals.slug = slugify(vals.slug || vals.title) || null;
+          vals.url = vals.links?.[0]?.url || ""; // kolom lama, tetap diisi link pertama
+        }
         const q = isNew ? sb.from(conf.table).insert(vals) : sb.from(conf.table).update(vals).eq("id", row.id);
         const res = await q.select();
         if (res.error?.code === "23505") throw new Error(`The address "${vals.slug}" is already used by another project. Choose a different page address.`);

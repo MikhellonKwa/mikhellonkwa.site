@@ -56,6 +56,9 @@
     .list-head { margin-bottom: 8px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
     .period-grid { display: grid; grid-template-columns: 56px 1fr 1fr; gap: 8px 10px; align-items: center; }
     .period-grid select:disabled { opacity: .4; }
+    .link-list { display: grid; gap: 8px; }
+    .link-row { display: grid; grid-template-columns: 1fr 2fr auto auto; gap: 8px; align-items: center; }
+    @media (max-width: 560px) { .link-row { grid-template-columns: 1fr auto auto; } .link-row input[type=url] { grid-column: 1 / -1; grid-row: 2; } }
     .form-box { border: 1px solid var(--line); border-radius: 8px; padding: 22px; margin: 16px 0 24px; }
     .form-box h3 { font-size: 1rem; font-weight: 500; margin-bottom: 16px; }
     .row-actions { display: flex; gap: 8px; flex-shrink: 0; }

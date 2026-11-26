@@ -19,6 +19,7 @@ export const DEMO = {
     {
       id: "d1", slug: "rumah-contoh", title: "Rumah Contoh", year: "2026", location: "Jakarta, Indonesia", subtitle: "Contoh halaman project dengan semua jenis blok",
       tags: ["hunian"], description: "Ceritakan masalahnya, peran kamu, prosesnya, dan hasilnya di sini.", url: "",
+      links: [{ label: "Behance", url: "https://www.behance.net" }, { label: "Competition page", url: "https://example.com" }],
       image_url: "https://picsum.photos/id/1040/1200/900",
       blocks: [
         { type: "image", url: "https://picsum.photos/id/1040/1600/900", caption: "Foto besar dengan lebar penuh", size: "full" },

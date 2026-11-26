@@ -152,12 +152,16 @@ function render({ profile, project: p, route: r }) {
   document.title = `${p.title}${name ? " — " + name : ""}`;
   const blocks = (Array.isArray(p.blocks) ? p.blocks : []).map(renderBlock).filter(Boolean);
   const cover = safeUrl(p.image_url);
-  const url = safeUrl(p.url);
+  // Banyak link (label + url); project lama yang cuma punya "url" tetap tampil.
+  const links = (Array.isArray(p.links) && p.links.length ? p.links : p.url ? [{ label: "Open project", url: p.url }] : [])
+    .map(l => ({ label: l.label || l.url, u: safeUrl(l.url) }))
+    .filter(l => l.u);
   const facts = [
     p.year ? ["Year", p.year] : null,
     p.location ? ["Location", p.location] : null,
     p.tags?.length ? ["Category", p.tags.join(", ")] : null,
-    url ? ["Link", h("a", { href: url, target: "_blank", rel: "noopener" }, "Open project ↗")] : null,
+    links.length ? [links.length > 1 ? "Links" : "Link",
+      h("span", { class: "link-stack" }, links.map(l => h("a", { href: l.u, target: "_blank", rel: "noopener" }, l.label + " ↗")))] : null,
   ].filter(Boolean);
   const desc = paragraphs(p.description);
   const pdf = safeUrl(p.pdf_url);
